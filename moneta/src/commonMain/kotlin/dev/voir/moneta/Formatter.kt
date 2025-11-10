@@ -14,13 +14,12 @@ package dev.voir.moneta
  *
  * @return formatted string, e.g. "1 234.56" or "-0.50" etc.
  */
-fun Money.toGroupedString(
+fun Moneta.toGroupedString(
     currency: Currency,
     decimals: Int? = null,
     groupSeparator: Char = ' ',
     decimalSeparator: Char = '.',
     showDecimalIfZero: Boolean = true,
-    rounding: Rounding = Rounding.HALF_UP
 ): String {
     require(decimals == null || (decimals in 0..(currency.decimals))) {
         "decimals must be null or between 0 and currency.decimals"

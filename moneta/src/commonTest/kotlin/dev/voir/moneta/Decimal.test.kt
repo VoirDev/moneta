@@ -77,6 +77,9 @@ class DecimalTest {
         val b = Decimal.of("2.345")
         assertEquals("2.34", b.setScale(2, Rounding.DOWN).toPlainString())
         assertEquals("2.35", b.setScale(2, Rounding.UP).toPlainString())
+
+        val c = Decimal.of("5")
+        assertEquals("5", c.setScale(2, Rounding.DOWN).toPlainString())
     }
 
     @Test
