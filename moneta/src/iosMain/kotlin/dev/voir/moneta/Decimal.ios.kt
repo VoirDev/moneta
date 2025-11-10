@@ -125,6 +125,24 @@ actual class Decimal private constructor(private val n: NSDecimalNumber) {
         return rounded.n.stringValue
     }
 
+    actual fun abs(): Decimal {
+        // Compare to NotANumber separately
+        if (isNan()) return this
+        val doubleVal = n.doubleValue
+        val positive = if (doubleVal < 0.0) {
+            // create positive via absolute value string
+            val s = n.stringValue
+            if (s.startsWith("-")) Decimal(NSDecimalNumber(string = s.removePrefix("-"))) else this
+        } else this
+        return positive
+    }
+
+    actual fun isNan(): Boolean {
+        // NSDecimalNumber.notANumber is a special singleton; compare using isEqualToNumber or check string
+        val notANumber = NSDecimalNumber.notANumber
+        return n == notANumber || n.stringValue == notANumber.stringValue
+    }
+
     /**
      * Create an NSDecimalNumberHandler with the given scale and rounding mode.
      *

@@ -3,6 +3,7 @@ package dev.voir.moneta
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class DecimalTest {
 
@@ -106,5 +107,56 @@ class DecimalTest {
         assertFailsWith<IllegalArgumentException> { Decimal.of("abc") }
         assertFailsWith<IllegalArgumentException> { Decimal.ofInteger("") }
         assertFailsWith<IllegalArgumentException> { Decimal.ofInteger("1.2") }
+    }
+
+
+    @Test
+    fun abs_positiveRemainsPositive() {
+        val d = Decimal.of("1.23")
+        val a = d.abs()
+        assertEquals("1.23", a.toPlainString(), "abs() of a positive value should be identical")
+    }
+
+    @Test
+    fun abs_negativeBecomesPositive() {
+        val d = Decimal.of("-1.23")
+        val a = d.abs()
+        assertEquals("1.23", a.toPlainString(), "abs() should remove the negative sign")
+    }
+
+    @Test
+    fun abs_zeroRemainsZero() {
+        val z = Decimal.zero()
+        val a = z.abs()
+        assertEquals("0", a.toPlainString(), "abs() of zero should be zero")
+    }
+
+    @Test
+    fun abs_preservesMagnitude_after_movePointLeftAndRight() {
+        // sanity test for scaled values (e.g., atomic → decimal → abs)
+        val atomic = Decimal.ofInteger("12345").movePointLeft(2) // 123.45
+        val a = atomic.abs()
+        assertEquals("123.45", a.toPlainString())
+    }
+
+    @Test
+    fun bigDecimalHasNoNaN() {
+        // On JVM BigDecimal cannot represent NaN — isNan must always be false.
+        val zero = Decimal.of("0")
+        val negative = Decimal.of("-123.45")
+        val fractional = Decimal.of("3.14159")
+
+        assertFalse(
+            zero.isNan(),
+            "BigDecimal-backed Decimal must not report NaN for 0"
+        )
+        assertFalse(
+            negative.isNan(),
+            "BigDecimal-backed Decimal must not report NaN for negative values"
+        )
+        assertFalse(
+            fractional.isNan(),
+            "BigDecimal-backed Decimal must not report NaN for fractional values"
+        )
     }
 }

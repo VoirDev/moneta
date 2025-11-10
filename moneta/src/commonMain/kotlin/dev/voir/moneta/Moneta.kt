@@ -52,7 +52,7 @@ value class Moneta private constructor(val value: Decimal) {
             val integerStr = value.toString()
             val dec = Decimal.ofInteger(integerStr)
             val scaled = dec.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -68,7 +68,7 @@ value class Moneta private constructor(val value: Decimal) {
             val integerStr = value.toString()
             val dec = Decimal.ofInteger(integerStr)
             val scaled = dec.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -119,7 +119,7 @@ value class Moneta private constructor(val value: Decimal) {
         ): Moneta {
             val d = Decimal.of(value.toString())
             val scaled = d.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -139,7 +139,7 @@ value class Moneta private constructor(val value: Decimal) {
         ): Moneta {
             val d = Decimal.of(decimal)
             val scaled = d.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -156,7 +156,7 @@ value class Moneta private constructor(val value: Decimal) {
         ): Moneta {
             val d = Decimal.ofInteger(atomic.toString()).movePointLeft(currency.decimals)
             val scaled = d.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -171,7 +171,7 @@ value class Moneta private constructor(val value: Decimal) {
         ): Moneta {
             val d = Decimal.ofInteger(atomic.toString()).movePointLeft(currency.decimals)
             val scaled = d.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -189,7 +189,7 @@ value class Moneta private constructor(val value: Decimal) {
         ): Moneta {
             val d = Decimal.ofInteger(atomic).movePointLeft(currency.decimals)
             val scaled = d.setScale(currency.decimals, rounding)
-            return Moneta(scaled)
+            return positive(scaled)
         }
 
         /**
@@ -217,7 +217,7 @@ value class Moneta private constructor(val value: Decimal) {
                     // fallback: use toString()
                     val d = Decimal.of(number.toString())
                     val scaled = d.setScale(currency.decimals, rounding)
-                    Moneta(scaled)
+                    positive(scaled)
                 }
             }
         }
@@ -230,13 +230,22 @@ value class Moneta private constructor(val value: Decimal) {
          */
         fun fromAtomicString(atomic: String, currency: Currency): Moneta {
             val d = Decimal.ofInteger(atomic).movePointLeft(currency.decimals)
-            return Moneta(d)
+            return positive(d)
         }
 
         /**
          * Returns a zero-valued `Moneta` (decimal zero).
          */
         fun zero() = Moneta(Decimal.zero())
+
+        /**
+         * Centralized constructor that enforces positivity and basic validation.
+         * All other factories/operators route through this to guarantee Moneta >= 0.
+         */
+        private fun positive(decimal: Decimal): Moneta {
+            require(!decimal.isNan()) { "Moneta cannot store NaN" }
+            return Moneta(decimal.abs())
+        }
     }
 
     /**

@@ -66,7 +66,7 @@ actual class Decimal private constructor(private val bd: BigDecimal) {
     actual fun movePointLeft(places: Int): Decimal = Decimal(bd.movePointLeft(places))
 
     actual fun movePointRight(places: Int): Decimal = Decimal(bd.movePointRight(places))
-    
+
     actual fun setScale(scale: Int, rounding: Rounding): Decimal =
         Decimal(bd.setScale(scale, rounding.toRoundingMode()))
 
@@ -74,6 +74,10 @@ actual class Decimal private constructor(private val bd: BigDecimal) {
 
     actual fun toIntegerString(): String =
         bd.setScale(0, RoundingMode.HALF_UP).toBigIntegerExact().toString()
+
+    actual fun abs(): Decimal = Decimal(bd.abs())
+
+    actual fun isNan(): Boolean = false // BigDecimal has no NaN
 
     private fun Rounding.toRoundingMode(): RoundingMode = when (this) {
         Rounding.HALF_UP -> RoundingMode.HALF_UP

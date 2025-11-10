@@ -155,4 +155,18 @@ expect class Decimal {
      * Used by `Money` when storing into databases or persistence layers.
      */
     fun toIntegerString(): String
+
+    /**
+     * Returns a new `Decimal` with a non-negative sign.
+     *
+     * ### Examples
+     * `Decimal.of("-1.23").abs().toPlainString()` → `"1.23"`
+     * `Decimal.of("0").abs()` → `"0"`
+     */
+    fun abs(): Decimal
+
+    /**
+     * Returns `true` if this `Decimal` represents a "not a number" value.
+     */
+    fun isNan(): Boolean
 }
