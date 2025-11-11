@@ -41,7 +41,3 @@ fun String.toAtomicMoney(currency: Currency, rounding: Rounding = Rounding.HALF_
 operator fun Moneta.plus(other: Moneta): Moneta = this.plus(other)
 operator fun Moneta.minus(other: Moneta): Moneta = this.minus(other)
 operator fun Moneta.times(factor: Int): Moneta = this.times(factor.toLong())
-
-/** Convert back to atomic integer string for persistence */
-fun Moneta.toAtomicString(currency: Currency, rounding: Rounding = Rounding.HALF_UP): String =
-    this.toAtomicString(currency, rounding)

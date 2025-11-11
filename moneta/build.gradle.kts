@@ -8,6 +8,16 @@ group = "dev.voir"
 version = "1.0.0-alpha01"
 
 kotlin {
+    jvmToolchain(21)
+
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=kotlin.time.ExperimentalTime")
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+}
+
+
+kotlin {
     jvm()
 
     listOf(
