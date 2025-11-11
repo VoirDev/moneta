@@ -29,7 +29,8 @@ fun Long.toMoneta(
 
 fun Short.toMoneta(
     code: String = "default",
-    decimals: Int = 4, rounding: Rounding = Rounding.HALF_UP
+    decimals: Int = 4,
+    rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromShort(
         value = this,
@@ -40,7 +41,8 @@ fun Short.toMoneta(
 
 fun Byte.toMoneta(
     code: String = "default",
-    decimals: Int = 4, rounding: Rounding = Rounding.HALF_UP
+    decimals: Int = 4,
+    rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromByte(
         value = this,
@@ -51,7 +53,8 @@ fun Byte.toMoneta(
 
 fun Double.toMoneta(
     code: String = "default",
-    decimals: Int = 4, rounding: Rounding = Rounding.HALF_UP
+    decimals: Int = 4,
+    rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromDouble(
         value = this,
@@ -62,7 +65,8 @@ fun Double.toMoneta(
 
 fun Float.toMoneta(
     code: String = "default",
-    decimals: Int = 4, rounding: Rounding = Rounding.HALF_UP
+    decimals: Int = 4,
+    rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromFloat(
         value = this,
@@ -77,7 +81,7 @@ fun Number.toMoneta(
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromNumber(
-        number = this,
+        value = this,
         code = code,
         decimals = decimals,
         rounding = rounding
@@ -92,7 +96,7 @@ fun Int.toAtomicMoneta(
     decimals: Int = 4,
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicInt(
-    atomic = this,
+    value = this,
     code = code,
     decimals = decimals,
     rounding = rounding
@@ -103,7 +107,7 @@ fun Long.toAtomicMoneta(
     decimals: Int = 4,
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicLong(
-    atomic = this,
+    value = this,
     code = code,
     decimals = decimals,
     rounding = rounding
@@ -114,7 +118,7 @@ fun String.toAtomicMoneta(
     decimals: Int = 4,
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicString(
-    atomic = this,
+    value = this,
     code = code,
     decimals = decimals,
     rounding = rounding

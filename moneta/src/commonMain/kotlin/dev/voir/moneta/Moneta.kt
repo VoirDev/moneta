@@ -198,15 +198,15 @@ class Moneta private constructor(
          *
          * Example: `fromDecimalString("0.1", usd)` -> exactly `0.10` USD.
          *
-         * @param decimal exact decimal representation (e.g. "123.45", "-0.001")
+         * @param value exact decimal representation (e.g. "123.45", "-0.001")
          */
         fun fromDecimalString(
-            decimal: String,
+            value: String,
             code: String = "default",
             decimals: Int = 4,
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
-            val d = Decimal.of(decimal)
+            val d = Decimal.of(value)
             val scaled = d.setScale(decimals, rounding)
             return Moneta(
                 value = scaled.abs(),
@@ -220,15 +220,15 @@ class Moneta private constructor(
          *
          * Example: `fromAtomicInt(150, usd)` -> `1.50` USD when `usd.decimals == 2`.
          *
-         * @param atomic count of smallest units (integer)
+         * @param value count of smallest units (integer)
          */
         fun fromAtomicInt(
-            atomic: Int,
+            value: Int,
             code: String = "default",
             decimals: Int = 4,
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
-            val d = Decimal.ofInteger(atomic.toString()).movePointLeft(decimals)
+            val d = Decimal.ofInteger(value.toString()).movePointLeft(decimals)
             val scaled = d.setScale(decimals, rounding)
             return Moneta(
                 value = scaled.abs(),
@@ -243,12 +243,12 @@ class Moneta private constructor(
          * Use for large atomic counts such as long-running ledger aggregates.
          */
         fun fromAtomicLong(
-            atomic: Long,
+            value: Long,
             code: String = "default",
             decimals: Int = 4,
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
-            val d = Decimal.ofInteger(atomic.toString()).movePointLeft(decimals)
+            val d = Decimal.ofInteger(value.toString()).movePointLeft(decimals)
             val scaled = d.setScale(decimals, rounding)
             return Moneta(
                 value = scaled.abs(),
@@ -263,15 +263,15 @@ class Moneta private constructor(
          * This is convenient for persisted data (databases, blockchain, APIs) that
          * already store atomic amounts as strings.
          *
-         * @param atomic integer string (e.g. "12345")
+         * @param value integer string (e.g. "12345")
          */
         fun fromAtomicString(
-            atomic: String,
+            value: String,
             code: String = "default",
             decimals: Int = 4,
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
-            val d = Decimal.ofInteger(atomic).movePointLeft(decimals)
+            val d = Decimal.ofInteger(value).movePointLeft(decimals)
             val scaled = d.setScale(decimals, rounding)
             return Moneta(
                 value = scaled.abs(),
@@ -290,27 +290,27 @@ class Moneta private constructor(
          * For unknown `Number` subclasses the `toString()` representation is parsed.
          */
         fun fromNumber(
-            number: Number,
+            value: Number,
             code: String = "default",
             decimals: Int = 4,
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
-            return when (number) {
-                is Int -> fromInt(number, code = code, decimals = decimals, rounding = rounding)
-                is Long -> fromLong(number, code = code, decimals = decimals, rounding = rounding)
-                is Short -> fromShort(number, code = code, decimals = decimals, rounding = rounding)
-                is Byte -> fromByte(number, code = code, decimals = decimals, rounding = rounding)
+            return when (value) {
+                is Int -> fromInt(value, code = code, decimals = decimals, rounding = rounding)
+                is Long -> fromLong(value, code = code, decimals = decimals, rounding = rounding)
+                is Short -> fromShort(value, code = code, decimals = decimals, rounding = rounding)
+                is Byte -> fromByte(value, code = code, decimals = decimals, rounding = rounding)
                 is Double -> fromDouble(
-                    number,
+                    value,
                     code = code,
                     decimals = decimals,
                     rounding = rounding
                 )
 
-                is Float -> fromFloat(number, code = code, decimals = decimals, rounding = rounding)
+                is Float -> fromFloat(value, code = code, decimals = decimals, rounding = rounding)
                 else -> {
                     // fallback: use toString()
-                    val d = Decimal.of(number.toString())
+                    val d = Decimal.of(value.toString())
                     val scaled = d.setScale(decimals, rounding)
                     Moneta(scaled, code = code, decimals = decimals)
                 }
@@ -324,11 +324,11 @@ class Moneta private constructor(
          * then you can call `.toDecimalString(...)` with the desired number of decimals later.
          */
         fun fromAtomicString(
-            atomic: String,
+            value: String,
             code: String = "default",
             decimals: Int = 4,
         ): Moneta {
-            val d = Decimal.ofInteger(atomic).movePointLeft(decimals).abs()
+            val d = Decimal.ofInteger(value).movePointLeft(decimals).abs()
             return Moneta(
                 value = d,
                 code = code,
