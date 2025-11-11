@@ -19,22 +19,10 @@ kotlin {
 
 kotlin {
     jvm()
-
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "Moneta"
-            isStatic = true
-        }
-    }
-
-    sourceSets.all {
-        languageSettings.optIn("kotlin.experimental.ExperimentalObjCName")
-    }
-
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
+    
     sourceSets {
         jvmMain.dependencies {
 

@@ -179,7 +179,4 @@ actual class Decimal private constructor(private val n: NSDecimalNumber) {
         val cmp = x.compare(NSDecimalNumber.zero)
         return cmp == 0L
     }
-
-    // Expose internal NSDecimalNumber for internal usages if required.
-    internal fun asNSDecimalNumber(): NSDecimalNumber = n
 }
