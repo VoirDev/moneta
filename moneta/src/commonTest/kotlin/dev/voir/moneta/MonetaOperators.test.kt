@@ -4,14 +4,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class MonetaOperatorsTest {
-
-    private val usd = Currency("USD", 2)
-    private val btc = Currency("BTC", 8)
-
     @Test
     fun plus_operator_basic() {
-        val a = Moneta.fromDecimalString("10.50", usd)
-        val b = Moneta.fromDecimalString("2.25", usd)
+        val a = Moneta.fromDecimalString("10.50", code = "usd", decimals = 2)
+        val b = Moneta.fromDecimalString("2.25", code = "usd", decimals = 2)
 
         val sum = a + b
         assertEquals("12.75", sum.toDecimalString(2))
@@ -19,8 +15,8 @@ class MonetaOperatorsTest {
 
     @Test
     fun minus_operator_basic() {
-        val a = Moneta.fromDecimalString("5.00", usd)
-        val b = Moneta.fromDecimalString("1.25", usd)
+        val a = Moneta.fromDecimalString("5.00", code = "usd", decimals = 2)
+        val b = Moneta.fromDecimalString("1.25", code = "usd", decimals = 2)
 
         val diff = a - b
         assertEquals("3.75", diff.toDecimalString(2))
@@ -28,23 +24,23 @@ class MonetaOperatorsTest {
 
     @Test
     fun times_operator_int_factor() {
-        val price = Moneta.fromDecimalString("2.50", usd)
+        val price = Moneta.fromDecimalString("2.50", code = "usd", decimals = 2)
         val total = price * 3 // operator fun times(factor: Int)
         assertEquals("7.50", total.toDecimalString(2))
 
         val zero = price * 0
         assertEquals("0.00", zero.toDecimalString(2))
 
-        val negative = Moneta.fromDecimalString("-1.25", usd)
+        val negative = Moneta.fromDecimalString("-1.25", code = "usd", decimals = 2)
         val negTimes = negative * 4
-        assertEquals("-5.00", negTimes.toDecimalString(2))
+        assertEquals("5.00", negTimes.toDecimalString(2))
     }
 
     @Test
     fun operator_associativity_and_commutativity_examples() {
-        val x = Moneta.fromDecimalString("1.10", usd)
-        val y = Moneta.fromDecimalString("2.20", usd)
-        val z = Moneta.fromDecimalString("3.30", usd)
+        val x = Moneta.fromDecimalString("1.10", code = "usd", decimals = 2)
+        val y = Moneta.fromDecimalString("2.20", code = "usd", decimals = 2)
+        val z = Moneta.fromDecimalString("3.30", code = "usd", decimals = 2)
 
         // (x + y) + z == x + (y + z)
         val left = (x + y) + z
@@ -60,26 +56,26 @@ class MonetaOperatorsTest {
     @Test
     fun mixed_currency_warning_behaviour() {
         // We don't enforce currency checks in operators — tests ensure arithmetic stays local.
-        val usdAmt = Moneta.fromDecimalString("1.00", usd)
-        val btcAmt = Moneta.fromDecimalString("0.00010000", btc)
+        val usdAmt = Moneta.fromDecimalString("1.00", code = "usd", decimals = 2)
+        val btcAmt = Moneta.fromDecimalString("0.00010000", code = "btc", decimals = 8)
 
         // These operations are nonsensical across currencies but should still produce a Decimal result.
         // We assert they produce the expected numeric combination of their underlying decimals.
-        val combined = usdAmt + Moneta.fromDecimalString("2.00", usd)
+        val combined = usdAmt + Moneta.fromDecimalString("2.00", code = "usd", decimals = 2)
         assertEquals("3.00", combined.toDecimalString(2))
 
         // Ensure combining btc with btc works as expected
-        val btcSum = btcAmt + Moneta.fromDecimalString("0.00020000", btc)
+        val btcSum = btcAmt + Moneta.fromDecimalString("0.00020000", code = "btc", decimals = 8)
         assertEquals("0.00030000", btcSum.toDecimalString(8))
     }
 
     @Test
     fun large_factor_and_precision() {
-        val small = Moneta.fromDecimalString("0.01", usd)
+        val small = Moneta.fromDecimalString("0.01", code = "usd", decimals = 2)
         val big = small * 10_000 // 100.00
         assertEquals("100.00", big.toDecimalString(2))
 
-        val oneBtc = Moneta.fromDecimalString("1.00000001", btc)
+        val oneBtc = Moneta.fromDecimalString("1.00000001", code = "btc", decimals = 8)
         val scaled = oneBtc * 100
         // expect 100.00000100 (preserve BTC decimals when displaying)
         assertEquals("100.00000100", scaled.toDecimalString(8))

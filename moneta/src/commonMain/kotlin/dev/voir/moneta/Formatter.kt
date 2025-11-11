@@ -3,9 +3,8 @@ package dev.voir.moneta
 /**
  * Format Money to a grouped string for users.
  *
- * @param currency         Currency metadata (decimals = atomic digits)
- * @param decimals         If null -> show up to currency.decimals trimming trailing zeros (significant digits).
- *                         If Int -> show exactly that many fractional digits (0..currency.decimals).
+ * @param decimals         If null -> show up to Moneta.decimals trimming trailing zeros (significant digits).
+ *                         If Int -> show exactly that many fractional digits (0..Moneta.decimals).
  * @param groupSeparator   Character between groups of 3 digits in the whole part (default: space).
  * @param decimalSeparator Character between whole and fraction (default: '.').
  * @param showDecimalIfZero When fraction is zero (after trimming) and decimals == null:
@@ -15,13 +14,12 @@ package dev.voir.moneta
  * @return formatted string, e.g. "1 234.56" or "-0.50" etc.
  */
 fun Moneta.toGroupedString(
-    currency: Currency,
     decimals: Int? = null,
     groupSeparator: Char = ' ',
     decimalSeparator: Char = '.',
     showDecimalIfZero: Boolean = true,
 ): String {
-    require(decimals == null || (decimals in 0..(currency.decimals))) {
+    require(decimals == null || (decimals in 0..(this.decimals))) {
         "decimals must be null or between 0 and currency.decimals"
     }
 
@@ -32,7 +30,7 @@ fun Moneta.toGroupedString(
     } else {
         // significant digits up to currency.decimals: get scaled string with currency.decimals,
         // then trim trailing zeros from fraction (but keep at least nothing).
-        val raw = this.toDecimalString(currency.decimals)
+        val raw = this.toDecimalString(this.decimals)
         // raw is like "-123.450000" or "10.000000" or "5"
         raw
     }

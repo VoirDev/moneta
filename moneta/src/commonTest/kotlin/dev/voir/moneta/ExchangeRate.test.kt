@@ -5,17 +5,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ExchangeRateTest {
-
-    private val usd = Currency("USD", 2)
-    private val myr = Currency("MYR", 2)
-    private val btc = Currency("BTC", 8)
-
     @Test
     fun convertByRate_simpleUsdToMyr() {
-        val oneUsd = Moneta.fromInt(1, usd)                 // 1.00 USD
-        val rate = Decimal.of("4.6")                       // 4.6 MYR per 1 USD
+        val oneUsd = Moneta.fromInt(1, code = "usd", decimals = 2) // 1.00 USD
+        val rate = Decimal.of("4.6") // 4.6 MYR per 1 USD
 
-        val converted = oneUsd.convertByRate(rate = rate, targetCurrency = myr)
+        val converted = oneUsd.convertByRate(rate = rate, targetCode = "myr", targetDecimals = 2)
         // 1.00 * 4.6 = 4.6 -> rounded to 2 decimals => 4.60
         assertEquals("4.60", converted.toDecimalString(2))
     }
@@ -23,20 +18,24 @@ class ExchangeRateTest {
     @Test
     fun convertByRate_cryptoPrecision() {
         // Convert BTC -> USD using a high-precision rate
-        val satoshiAtomic = Moneta.fromAtomicLong(123456789L, btc) // 1.23456789 BTC
+        val satoshiAtomic = Moneta.fromAtomicLong(
+            123456789L, code = "btc", decimals = 8
+        ) // 1.23456789 BTC
         val usdPerBtc = Decimal.of("45000.12345678")              // USD per BTC (high precision)
 
-        val converted = satoshiAtomic.convertByRate(usdPerBtc, usd)
+        val converted = satoshiAtomic.convertByRate(
+            usdPerBtc, targetCode = "usd", targetDecimals = 2
+        )
         // Multiply then round to 2 decimals
         val expectedRaw = Decimal.of("1.23456789").multiply(usdPerBtc)
-        val expectedRounded = expectedRaw.setScale(usd.decimals, Rounding.HALF_UP)
-        assertEquals(expectedRounded.toPlainString(), converted.toDecimalString(usd.decimals))
+        val expectedRounded = expectedRaw.setScale(2, Rounding.HALF_UP)
+        assertEquals(expectedRounded.toPlainString(), converted.toDecimalString(2))
     }
 
     @Test
     fun calculateExchangeRate_and_reverse_pair() {
-        val from = Moneta.fromDecimalString("1.00", usd)
-        val to = Moneta.fromDecimalString("4.60", myr)
+        val from = Moneta.fromDecimalString("1.00", code = "usd", decimals = 2)
+        val to = Moneta.fromDecimalString("4.60", code = "myr", decimals = 2)
 
         val direct = calculateExchangeRate(from, to, scale = 8)
         val reverse = calculateReverseExchangeRate(direct, scale = 18)
@@ -50,8 +49,12 @@ class ExchangeRateTest {
 
     @Test
     fun calculateExchangeRatesPair_convenience() {
-        val from = Moneta.fromDecimalString("2.00", usd)
-        val to = Moneta.fromDecimalString("9.20", myr) // implies 4.6 MYR per 1 USD
+        val from = Moneta.fromDecimalString("2.00", code = "usd", decimals = 2)
+        val to = Moneta.fromDecimalString(
+            "9.20",
+            code = "myr",
+            decimals = 2
+        ) // implies 4.6 MYR per 1 USD
 
         val (direct, reverse) = calculateExchangeRatesPair(from, to, scale = 18)
         assertEquals("4.6", direct.setScale(1, Rounding.HALF_UP).toPlainString())
@@ -63,7 +66,7 @@ class ExchangeRateTest {
     @Test
     fun errors_when_rate_or_from_is_zero() {
         val zeroUsd = Moneta.zero()
-        val someMyr = Moneta.fromDecimalString("1.00", myr)
+        val someMyr = Moneta.fromDecimalString("1.00", code = "myr", decimals = 2)
         val zeroRate = Decimal.ofInteger("0")
 
         // calculateExchangeRate should throw when from is zero
@@ -77,9 +80,9 @@ class ExchangeRateTest {
         }
 
         // convertByRate should throw on zero rate
-        val oneUsd = Moneta.fromInt(1, usd)
+        val oneUsd = Moneta.fromInt(1, code = "usd", decimals = 2)
         assertFailsWith<ArithmeticException> {
-            oneUsd.convertByRate(zeroRate, myr)
+            oneUsd.convertByRate(zeroRate, targetCode = "myr", targetDecimals = 2)
         }
     }
 }
