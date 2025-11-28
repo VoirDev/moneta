@@ -1,4 +1,4 @@
-rootProject.name = "MonetaLibrary"
+rootProject.name = "MonetaKMP"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

@@ -1,14 +1,9 @@
 name: Publish library
 
-#on:
-#  release:
-#    types: [ published ]
-#  workflow_dispatch:
-
 on:
-  pull_request:
-    branches:
-      - main
+  release:
+    types: [ published ]
+  workflow_dispatch:
 
 jobs:
   publish:
