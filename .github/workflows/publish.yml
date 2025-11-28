@@ -54,7 +54,7 @@ jobs:
           echo "Using $(grep '^version=' gradle.properties)"
 
       - name: Build library
-        run: ./gradlew :moneta:clean :moneta:build -x test
+        run: ./gradlew :moneta:clean :moneta:build -x check
 
       - name: Publish library to GitHub Packages
         env:
