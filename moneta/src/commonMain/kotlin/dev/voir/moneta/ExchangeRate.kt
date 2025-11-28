@@ -1,7 +1,7 @@
 package dev.voir.moneta
 
 /**
- * Convert a `source` Moneta into a new Moneta expressed in [targetCurrency].
+ * Convert a `source` Moneta into a new Moneta expressed in [targetCode] and [targetDecimals].
  *
  * @param rate exchange rate.
  * @param targetCode the currency target code stored on the resulting Moneta
