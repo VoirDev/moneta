@@ -11,7 +11,7 @@ import dev.voir.moneta.Moneta.Companion.fromInt
  *  2. the currency code (`code`) — e.g. "USD", "EUR"
  *  3. the currency scale/decimals (`decimals`) — number of fractional digits (e.g. 2 for USD cents)
  *
- * Internally the amount is stored as a high-precision [`Decimal`] instance. `Moneta` is
+ * Internally the amount is stored as a high-precision [Decimal] instance. `Moneta` is
  * **decimal-based** and intended to be exact for fiat and crypto usage when combined with
  * the correct `decimals` for the currency.
  *
@@ -419,6 +419,18 @@ class Moneta private constructor(
         val shifted = value.setScale(this.decimals, rounding).movePointRight(this.decimals)
         return shifted.toIntegerString()
     }
+
+    /**
+     * Convert this Moneta into atomic smallest-units as a Long (cents/sats/wei...).
+     *
+     * - Rounds to currency decimals (HALF_UP by default), then shifts right by `decimals`
+     * - Returns null if the result doesn't fit in a Long
+     */
+    fun toAtomicLongOrNull(rounding: Rounding = Rounding.HALF_UP): Long? {
+        val atomicStr = this.toAtomicString(rounding) // already scaled + shifted + integer string
+        return atomicStr.toLongOrNull()
+    }
+
 
     /**
      * Human-friendly textual representation of the monetary value using the underlying decimal.
