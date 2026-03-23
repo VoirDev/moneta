@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Optional version to publish (example: 1.1.0). If omitted, minor is bumped automatically."
+        description: "Optional version to publish (example: 1.1.0). If omitted, latest tag is used and minor is bumped."
         required: false
         type: string
       release_name:
-        description: "GitHub release title"
+        description: "Optional GitHub release title"
         required: false
         type: string
       release_notes:
@@ -71,7 +71,7 @@ jobs:
               MINOR="${BASH_REMATCH[2]}"
               TARGET_VERSION="${MAJOR}.$((MINOR + 1)).0"
 
-              echo "No version provided. Bumped minor from latest release to: $TARGET_VERSION"
+              echo "No version provided. Bumped minor from latest tag to: $TARGET_VERSION"
             fi
           fi
 
@@ -85,7 +85,7 @@ jobs:
           echo "Target version: $TARGET_VERSION"
           echo "Target tag:     $TARGET_TAG"
 
-          if git ls-remote --tags origin "refs/tags/${TARGET_TAG}" | grep -q "${TARGET_TAG}"; then
+          if git ls-remote --tags origin "refs/tags/${TARGET_TAG}" | grep -q "refs/tags/${TARGET_TAG}$"; then
             echo "Tag already exists on origin: $TARGET_TAG"
             exit 1
           fi
@@ -93,59 +93,24 @@ jobs:
           echo "target_version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
           echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Update project version
+      - name: Verify Gradle sees target version
         shell: bash
         run: |
           set -euo pipefail
 
           TARGET_VERSION="${{ steps.versioning.outputs.target_version }}"
+          PROJECT_VERSION="$(./gradlew -q properties -Pversion="$TARGET_VERSION" | awk -F': ' '/^version:/ {print $2; exit}')"
 
-          touch gradle.properties
-
-          if grep -qE '^version=' gradle.properties; then
-            sed -i -E "s/^version=.*/version=${TARGET_VERSION}/" gradle.properties
-          else
-            printf '\nversion=%s\n' "$TARGET_VERSION" >> gradle.properties
-          fi
-
-          echo "Updated gradle.properties:"
-          grep -E '^version=' gradle.properties
-
-      - name: Verify Gradle version
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PROJECT_VERSION="$(./gradlew properties -q | awk -F': ' '/^version:/ {print $2; exit}')"
-          TARGET_VERSION="${{ steps.versioning.outputs.target_version }}"
-
-          echo "Project version: $PROJECT_VERSION"
-          echo "Target version:  $TARGET_VERSION"
+          echo "Gradle project version: $PROJECT_VERSION"
+          echo "Target version:         $TARGET_VERSION"
 
           if [[ "$PROJECT_VERSION" != "$TARGET_VERSION" ]]; then
             echo "Gradle version does not match target version."
             exit 1
           fi
 
-      - name: Commit version change
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add gradle.properties
-
-          if git diff --cached --quiet; then
-            echo "No version change to commit."
-          else
-            git commit -m "Release v${{ steps.versioning.outputs.target_version }}"
-            git push origin HEAD
-          fi
-
       - name: Publish to Maven Central
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        run: ./gradlew publishToMavenCentral -Pversion=${{ steps.versioning.outputs.target_version }} --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.CENTRAL_PASSWORD }}
