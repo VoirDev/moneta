@@ -42,22 +42,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          CURRENT_VERSION="$(./gradlew properties -q | awk -F': ' '/^version:/ {print $2; exit}')"
           INPUT_VERSION="${{ inputs.version }}"
-
-          echo "Current version: $CURRENT_VERSION"
 
           if [[ -n "$INPUT_VERSION" ]]; then
             TARGET_VERSION="$INPUT_VERSION"
+            echo "Using provided version: $TARGET_VERSION"
           else
-            if [[ ! "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-              echo "Current version '$CURRENT_VERSION' is not valid semver (x.y.z)"
-              exit 1
-            fi
+            LATEST_TAG="$(
+              git tag -l 'v*' \
+                | sed 's/^v//' \
+                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -V \
+                | tail -n 1
+            )"
 
-            MAJOR="${BASH_REMATCH[1]}"
-            MINOR="${BASH_REMATCH[2]}"
-            TARGET_VERSION="${MAJOR}.$((MINOR + 1)).0"
+            if [[ -z "$LATEST_TAG" ]]; then
+              TARGET_VERSION="1.0.0"
+              echo "No release tags found. Using default version: $TARGET_VERSION"
+            else
+              echo "Latest release tag version: $LATEST_TAG"
+
+              if [[ ! "$LATEST_TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                echo "Latest tag version '$LATEST_TAG' is not valid semver (x.y.z)"
+                exit 1
+              fi
+
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
+              TARGET_VERSION="${MAJOR}.$((MINOR + 1)).0"
+
+              echo "No version provided. Bumped minor from latest release to: $TARGET_VERSION"
+            fi
           fi
 
           if [[ ! "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -75,7 +90,6 @@ jobs:
             exit 1
           fi
 
-          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "target_version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
           echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
 
@@ -86,12 +100,13 @@ jobs:
 
           TARGET_VERSION="${{ steps.versioning.outputs.target_version }}"
 
-          if ! grep -qE '^version=' gradle.properties; then
-            echo "gradle.properties does not contain a version= entry"
-            exit 1
-          fi
+          touch gradle.properties
 
-          sed -i -E "s/^version=.*/version=${TARGET_VERSION}/" gradle.properties
+          if grep -qE '^version=' gradle.properties; then
+            sed -i -E "s/^version=.*/version=${TARGET_VERSION}/" gradle.properties
+          else
+            printf '\nversion=%s\n' "$TARGET_VERSION" >> gradle.properties
+          fi
 
           echo "Updated gradle.properties:"
           grep -E '^version=' gradle.properties
