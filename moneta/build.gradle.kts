@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    id("maven-publish")
+    id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
 group = "dev.voir"
@@ -29,23 +29,42 @@ kotlin {
     }
 }
 
-publishing {
-    publications.withType<MavenPublication>().configureEach {
-        pom {
-            name.set("moneta")
-            description.set("Moneta – Kotlin Multiplatform money type")
-            url.set("https://github.com/VoirDev/moneta")
-        }
-    }
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
 
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/VoirDev/moneta")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
+    coordinates(
+        groupId = "dev.voir",
+        artifactId = "moneta",
+        version = project.version.toString()
+    )
+
+    pom {
+        name.set("Moneta – Kotlin Multiplatform money type")
+        description.set("A Kotlin Multiplatform money type designed for safe, precise, and expressive monetary operations across iOS, JVM, and Android.")
+        url.set("https://github.com/VoirDev/moneta/")
+
+        licenses {
+            license {
+                name.set("GNU Lesser General Public License, Version 3")
+                url.set("https://www.gnu.org/licenses/lgpl-3.0.txt")
             }
+        }
+
+        developers {
+            developer {
+                id.set("checksanity")
+                name.set("Gary Bezruchko")
+                email.set("hello@voir.dev")
+                organization.set("VOIR")
+                organizationUrl.set("https://voir.dev")
+            }
+        }
+
+        scm {
+            url.set("https://github.com/VoirDev/moneta/")
+            connection.set("scm:git:git://github.com/VoirDev/moneta.git")
+            developerConnection.set("scm:git:ssh://git@github.com/VoirDev/moneta.git")
         }
     }
 }

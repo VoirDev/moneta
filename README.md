@@ -42,7 +42,7 @@ Add the following dependency to your project:
 
 ```gradle
 dependencies {
-    implementation("dev.voir.moneta:0.0.1")
+    implementation("dev.voir.moneta:1.0.0")
 }
 ```
 
