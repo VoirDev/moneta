@@ -3,9 +3,6 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
-group = "dev.voir"
-version = "0.0.1"
-
 kotlin {
     jvmToolchain(21)
 
