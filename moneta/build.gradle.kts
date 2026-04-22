@@ -3,6 +3,9 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
+group = "dev.voir"
+version = "1.0.2"
+
 kotlin {
     jvmToolchain(21)
 
@@ -24,6 +27,10 @@ kotlin {
         jvmMain.dependencies { }
         iosMain.dependencies { }
     }
+}
+
+val isLocalPublish = gradle.startParameter.taskNames.any {
+    it.contains("publishToMavenLocal", ignoreCase = true)
 }
 
 mavenPublishing {
