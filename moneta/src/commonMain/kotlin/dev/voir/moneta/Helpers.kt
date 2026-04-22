@@ -2,88 +2,74 @@ package dev.voir.moneta
 
 /**
  * Convenient Kotlin extension on primitives:
- *  1000.toMoneta(usd) == Money.fromInt(1000, usd)
+ *  1000.toMoneta() == Money.fromInt(1000)
  */
 fun Int.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromInt(
     value = this,
-    code = code,
-    decimals = decimals,
+    currency = currency,
     rounding = rounding
 )
 
 fun Long.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromLong(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
 fun Short.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromShort(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
 fun Byte.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromByte(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
 fun Double.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromDouble(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
 fun Float.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromFloat(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
 fun Number.toMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta =
     Moneta.fromNumber(
         value = this,
-        code = code,
-        decimals = decimals,
+        currency = currency,
         rounding = rounding
     )
 
@@ -92,35 +78,29 @@ fun Number.toMoneta(
  *  - 100L.toAtomicMoney(usd) -> treats 100 as "100 cents" (if usd.decimals==2)
  */
 fun Int.toAtomicMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicInt(
     value = this,
-    code = code,
-    decimals = decimals,
+    currency = currency,
     rounding = rounding
 )
 
 fun Long.toAtomicMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicLong(
     value = this,
-    code = code,
-    decimals = decimals,
+    currency = currency,
     rounding = rounding
 )
 
 fun String.toAtomicMoneta(
-    code: String = "default",
-    decimals: Int = 4,
+    currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta = Moneta.fromAtomicString(
     value = this,
-    code = code,
-    decimals = decimals,
+    currency = currency,
     rounding = rounding
 )
 
