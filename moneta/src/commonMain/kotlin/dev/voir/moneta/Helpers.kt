@@ -155,13 +155,17 @@ fun String.toDecimalStringOrNull(): String? {
     val isNegative = cleaned.startsWith("-")
     val unsigned = cleaned.removePrefix("-").replace("-", "")
 
-    // Must contain at least one digit
-    if (unsigned.none(Char::isDigit)) return null
+    if (unsigned.isBlank()) return null
 
     val lastSeparatorIndex = maxOf(
         unsigned.lastIndexOf('.'),
         unsigned.lastIndexOf(',')
     )
+
+    val hasAnyDigit = unsigned.any(Char::isDigit)
+    val endsWithSeparator = unsigned.endsWith('.') || unsigned.endsWith(',')
+
+    if (!hasAnyDigit && !endsWithSeparator) return null
 
     val normalized = buildString {
         if (isNegative) append('-')
@@ -169,27 +173,22 @@ fun String.toDecimalStringOrNull(): String? {
         if (lastSeparatorIndex == -1) {
             append(unsigned.filter(Char::isDigit))
         } else {
-            append(
-                unsigned
-                    .substring(0, lastSeparatorIndex)
-                    .filter(Char::isDigit)
-                    .ifEmpty { "0" }
-            )
-
-            val decimals = unsigned
-                .substring(lastSeparatorIndex + 1)
+            val integer = unsigned
+                .substring(0, lastSeparatorIndex)
                 .filter(Char::isDigit)
 
-            if (decimals.isNotEmpty()) {
-                append('.')
-                append(decimals)
-            }
+            append(integer.ifEmpty { "0" })
+            append('.')
+
+            append(
+                unsigned
+                    .substring(lastSeparatorIndex + 1)
+                    .filter(Char::isDigit)
+            )
         }
     }
 
-    return normalized
-        .removeSuffix(".")
-        .takeIf { it.any(Char::isDigit) }
+    return normalized.takeIf { it.any(Char::isDigit) || it.endsWith('.') }
 }
 
 operator fun Moneta.plus(other: Moneta): Moneta = this.plus(other)
