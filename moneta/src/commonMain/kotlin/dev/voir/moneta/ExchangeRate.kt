@@ -1,19 +1,17 @@
 package dev.voir.moneta
 
 /**
- * Convert a `source` Moneta into a new Moneta expressed in [targetCode] and [targetDecimals].
+ * Convert a `source` Moneta into a new Moneta expressed in [targetCurrency].
  *
  * @param rate exchange rate.
- * @param targetCode the currency target code stored on the resulting Moneta
- * @param targetDecimals target number of fractional digits for this currency
+ * @param targetCurrency the currency target stored on the resulting Moneta
  * @param rounding rounding mode applied when scaling to the target currency decimals.
  *
  * @throws ArithmeticException if the provided rate is zero or NaN.
  */
 fun Moneta.convertByRate(
     rate: Decimal,
-    targetCode: String,
-    targetDecimals: Int,
+    targetCurrency: Currency,
     rounding: Rounding = Rounding.HALF_UP
 ): Moneta {
     if (isDecimalZeroOrNaN(rate)) {
@@ -24,13 +22,12 @@ fun Moneta.convertByRate(
     val raw = this.value.multiply(rate)
 
     // Round the resulting Decimal to the target currency decimals (final monetary representation).
-    val rounded = raw.setScale(targetDecimals, rounding)
+    val rounded = raw.setScale(targetCurrency.decimals, rounding)
 
     // Build and return a Moneta in target currency from the decimal string (uses public factory).
     return Moneta.fromDecimalString(
         rounded.toPlainString(),
-        code = targetCode,
-        decimals = targetDecimals,
+        currency = targetCurrency,
         rounding = rounding
     )
 }

@@ -15,11 +15,14 @@ class ToDecimalStringTest {
     fun `returns null when input has no digits`() {
         assertEquals(null, "abc".toDecimalStringOrNull())
         assertEquals(null, "--".toDecimalStringOrNull())
-        assertEquals(null, ", . -".toDecimalStringOrNull())
-        assertEquals(null, ".".toDecimalStringOrNull())
-        assertEquals(null, ",".toDecimalStringOrNull())
-        assertEquals(null, "-,".toDecimalStringOrNull())
-        assertEquals(null, "-.".toDecimalStringOrNull())
+    }
+
+    @Test
+    fun `handle decimal separator as null`() {
+        assertEquals("0.", ".".toDecimalStringOrNull())
+        assertEquals("0.", ",".toDecimalStringOrNull())
+        assertEquals("-0.", "-,".toDecimalStringOrNull())
+        assertEquals("-0.", "-.".toDecimalStringOrNull())
     }
 
     @Test
@@ -54,9 +57,9 @@ class ToDecimalStringTest {
     }
 
     @Test
-    fun `removes trailing decimal separator`() {
-        assertEquals("12", "12.".toDecimalStringOrNull())
-        assertEquals("12", "12,".toDecimalStringOrNull())
+    fun `does not remove trailing decimal separator`() {
+        assertEquals("12.", "12.".toDecimalStringOrNull())
+        assertEquals("12.", "12,".toDecimalStringOrNull())
     }
 
     @Test

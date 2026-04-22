@@ -19,7 +19,7 @@ fun Moneta.toGroupedString(
     decimalSeparator: Char = '.',
     showDecimalIfZero: Boolean = true,
 ): String {
-    require(decimals == null || (decimals in 0..(this.decimals))) {
+    require(decimals == null || (decimals in 0..(this.currency.decimals))) {
         "decimals must be null or between 0 and currency.decimals"
     }
 
@@ -30,7 +30,7 @@ fun Moneta.toGroupedString(
     } else {
         // significant digits up to currency.decimals: get scaled string with currency.decimals,
         // then trim trailing zeros from fraction (but keep at least nothing).
-        val raw = this.toDecimalString(this.decimals)
+        val raw = this.toDecimalString(this.currency.decimals)
         // raw is like "-123.450000" or "10.000000" or "5"
         raw
     }
