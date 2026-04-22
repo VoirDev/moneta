@@ -430,8 +430,7 @@ class Moneta private constructor(
         val atomicStr = this.toAtomicString(rounding) // already scaled + shifted + integer string
         return atomicStr.toLongOrNull()
     }
-
-
+    
     /**
      * Human-friendly textual representation of the monetary value using the underlying decimal.
      *

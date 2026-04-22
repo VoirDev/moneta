@@ -6,17 +6,12 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class MonetaFormattingTest {
-
-    // private val usd = Currency("USD", 2)
-    //private val btc = Currency("BTC", 8)
-    //private val jpy = Currency("JPY", 0) // no decimals
-
     @Test
     fun group_defaultSeparators_and_trimming_when_decimals_null() {
-        val m = Moneta.fromDecimalString("1234.5000", code = "usd", decimals = 2)
+        val m = Moneta.fromDecimalString("123456.7000", code = "usd", decimals = 2)
         // decimals = null -> significant digits up to currency.decimals => trims trailing zeros
         val s = m.toGroupedString(decimals = 2)
-        assertEquals("1 234.50", s)
+        assertEquals("123 456.70", s)
     }
 
     @Test
