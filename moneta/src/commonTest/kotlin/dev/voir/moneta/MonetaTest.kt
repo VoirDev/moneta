@@ -6,10 +6,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class MonetaTest {
-    //private val usd = Currency("USD", 2)
-    //private val btc = Currency("BTC", 8)
-    //private val eth = Currency("ETH", 18)
-
     @Test
     fun constructFromIntegers_wholeUnits() {
         val m1 = Moneta.fromInt(5, Currency(code = "usd", decimals = 2))   // 5 -> 5.00

@@ -193,7 +193,7 @@ class Moneta private constructor(
          */
         fun fromDecimalString(
             value: String,
-            currency: Currency,
+            currency: Currency = Currency(),
             rounding: Rounding = Rounding.HALF_UP
         ): Moneta {
             val d = Decimal.of(value)

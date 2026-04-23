@@ -35,7 +35,9 @@ val isLocalPublish = gradle.startParameter.taskNames.any {
 
 mavenPublishing {
     publishToMavenCentral()
-    signAllPublications()
+    if (!isLocalPublish) {
+        signAllPublications()
+    }
 
     coordinates(
         groupId = "dev.voir",
