@@ -93,8 +93,8 @@ class MutableMonetaTest {
 
         assertNotNull(usdValue)
         assertNotNull(btcValue)
-        assertEquals("1.23", usdValue?.toDecimalString())
-        assertEquals("1.23000000", btcValue?.toDecimalString(scale = 8))
+        assertEquals("1.23", usdValue.toDecimalString())
+        assertEquals("1.23000000", btcValue.toDecimalString(scale = 8))
     }
 
     @Test
