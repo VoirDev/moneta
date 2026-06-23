@@ -26,7 +26,8 @@ val amount = BigDecimal("1.23") // but what currency? what scale?
 With **Moneta**, a monetary value **carries its own currency metadata**:
 
 ```kotlin
-val m = Moneta.fromDecimalString("1.235", code = "USD", decimals = 2)
+val usd = Currency(code = "USD", decimals = 2)
+val m = Moneta.fromDecimalString("1.235", currency = usd)
 // m = 1.24 USD (HALF_UP rounding default)
 ```
 
@@ -42,31 +43,37 @@ Add the following dependency to your project:
 
 ```gradle
 dependencies {
-    implementation("dev.voir.moneta:1.0.0")
+    implementation("dev.voir:moneta:1.0.1")
 }
 ```
 
 ### Constructing values
 
 ```kotlin
+val usdCurrency = Currency(code = "USD", decimals = 2)
+val btcCurrency = Currency(code = "BTC", decimals = 8)
+
 // Whole-unit constructors
-val usd = Moneta.fromInt(10, code = "USD", decimals = 2)    // 10.00 USD
-val btc = Moneta.fromLong(1, code = "BTC", decimals = 8)    // 1.00000000 BTC
+val usd = Moneta.fromInt(10, currency = usdCurrency)    // 10.00 USD
+val btc = Moneta.fromLong(1, currency = btcCurrency)    // 1.00000000 BTC
 
 // Precise decimal input (avoid Float/Double artifacts)
-val exact = Moneta.fromDecimalString("0.1", code = "USD", decimals = 2) // 0.10 USD
+val exact = Moneta.fromDecimalString("0.1", currency = usdCurrency) // 0.10 USD
 
 // From atomic smallest units (cents, satoshis, wei)
-val sats = Moneta.fromAtomicLong(150000000, code = "BTC", decimals = 8)
+val sats = Moneta.fromAtomicLong(150000000, currency = btcCurrency)
 ```
 
 ### Arithmetic
 
-All operations preserve currency metadata.
+Arithmetic operations preserve the left operand's currency metadata and operate on the underlying
+decimal values. Constructors normalize input to absolute amounts, but arithmetic results can be
+negative.
 
 ```kotlin
-val a = Moneta.fromDecimalString("1.50", code = "USD", decimals = 2)
-val b = Moneta.fromDecimalString("2.00", code = "USD", decimals = 2)
+val usd = Currency(code = "USD", decimals = 2)
+val a = Moneta.fromDecimalString("1.50", currency = usd)
+val b = Moneta.fromDecimalString("2.00", currency = usd)
 
 val c = a.plus(b)   // -> 3.50 USD
 val d = b.minus(a)  // -> 0.50 USD
@@ -76,7 +83,7 @@ val e = a.times(3)  // -> 4.50 USD
 ### Atomic conversion (for persistence)
 
 ```kotlin
-val m = Moneta.fromDecimalString("1.235", code = "USD", decimals = 2)
+val m = Moneta.fromDecimalString("1.235", currency = Currency(code = "USD", decimals = 2))
 val atomic = m.toAtomicString() // "124"
 ```
 
@@ -84,6 +91,6 @@ val atomic = m.toAtomicString() // "124"
 
 ## License
 
-This project is licensed under the GNU Lesser General Public License v3.0.
+This project is licensed under the Apache License, Version 2.0.
 
-See the full license at https://www.gnu.org/licenses/lgpl-3.0.txt
+See the full license in [LICENSE](LICENSE).

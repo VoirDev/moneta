@@ -1,12 +1,14 @@
 package dev.voir.moneta
 
+import dev.voir.decimal.Decimal
+import dev.voir.decimal.Rounding
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ExchangeRateTest {
     @Test
-    fun convertByRate_simpleUsdToMyr() {
+    fun `convert USD to MYR by rate`() {
         val oneUsd = Moneta.fromInt(1, Currency(code = "usd", decimals = 2)) // 1.00 USD
         val rate = Decimal.of("4.6") // 4.6 MYR per 1 USD
 
@@ -16,7 +18,7 @@ class ExchangeRateTest {
     }
 
     @Test
-    fun convertByRate_cryptoPrecision() {
+    fun `convert crypto amount with high precision rate`() {
         // Convert BTC -> USD using a high-precision rate
         val satoshiAtomic = Moneta.fromAtomicLong(
             123456789L, Currency(code = "btc", decimals = 8)
@@ -33,7 +35,7 @@ class ExchangeRateTest {
     }
 
     @Test
-    fun calculateExchangeRate_and_reverse_pair() {
+    fun `calculate direct and reverse exchange rates`() {
         val from = Moneta.fromDecimalString("1.00", Currency(code = "usd", decimals = 2))
         val to = Moneta.fromDecimalString("4.60", Currency(code = "myr", decimals = 2))
 
@@ -48,7 +50,7 @@ class ExchangeRateTest {
     }
 
     @Test
-    fun calculateExchangeRatesPair_convenience() {
+    fun `calculate exchange rates pair`() {
         val from = Moneta.fromDecimalString("2.00", Currency(code = "usd", decimals = 2))
         val to = Moneta.fromDecimalString(
             "9.20",
@@ -63,7 +65,7 @@ class ExchangeRateTest {
     }
 
     @Test
-    fun errors_when_rate_or_from_is_zero() {
+    fun `throw when rate or source amount is zero`() {
         val zeroUsd = Moneta.zero()
         val someMyr = Moneta.fromDecimalString("1.00", Currency(code = "myr", decimals = 2))
         val zeroRate = Decimal.ofInteger("0")

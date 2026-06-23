@@ -1,7 +1,10 @@
 [versions]
-kotlin = "2.3.20" # https://kotlinlang.org/docs/releases.html
+agp = "9.2.1"
+kotlin = "2.4.0" # https://kotlinlang.org/docs/releases.html
 
 [libraries]
+voir-decimal = { module = "dev.voir:decimal", version = "1.0.2" }
 
 [plugins]
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

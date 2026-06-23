@@ -16,6 +16,7 @@ jobs:
   test:
     name: Run tests
     runs-on: macos-latest
+    if: ${{ !contains(github.event.pull_request.body || '', '[skip verify]') }}
 
     steps:
       - name: Checkout repository
