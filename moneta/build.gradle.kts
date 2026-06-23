@@ -1,31 +1,53 @@
 plugins {
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinMultiplatform)
     id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
-group = "dev.voir"
-version = "1.0.2"
-
 kotlin {
     jvmToolchain(21)
 
-    compilerOptions {
-        freeCompilerArgs.add("-opt-in=kotlin.time.ExperimentalTime")
-        freeCompilerArgs.add("-Xexpect-actual-classes")
-    }
-
     jvm()
+    android {
+        namespace = "dev.voir.moneta"
+        compileSdk = 37
+        minSdk = 23
+    }
     iosX64()
     iosArm64()
+    macosArm64()
     iosSimulatorArm64()
 
     sourceSets {
-        commonMain.dependencies { }
+        val commonMain = getByName("commonMain")
+        val commonTest = getByName("commonTest")
+        val jvmMain = getByName("jvmMain")
+        val androidMain = getByName("androidMain")
+        val iosX64Main = getByName("iosX64Main")
+        val iosArm64Main = getByName("iosArm64Main")
+        val iosSimulatorArm64Main = getByName("iosSimulatorArm64Main")
+        val macosArm64Main = getByName("macosArm64Main")
+
+        val jvmAndroidMain = create("jvmAndroidMain") {
+            dependsOn(commonMain)
+        }
+        val appleMain = findByName("appleMain") ?: create("appleMain") {
+            dependsOn(commonMain)
+        }
+
+        jvmMain.dependsOn(jvmAndroidMain)
+        androidMain.dependsOn(jvmAndroidMain)
+        iosX64Main.dependsOn(appleMain)
+        iosArm64Main.dependsOn(appleMain)
+        iosSimulatorArm64Main.dependsOn(appleMain)
+        macosArm64Main.dependsOn(appleMain)
+
+        commonMain.dependencies {
+            api(libs.voir.decimal)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-        jvmMain.dependencies { }
-        iosMain.dependencies { }
     }
 }
 
@@ -52,8 +74,8 @@ mavenPublishing {
 
         licenses {
             license {
-                name.set("GNU Lesser General Public License, Version 3")
-                url.set("https://www.gnu.org/licenses/lgpl-3.0.txt")
+                name.set("Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
             }
         }
 

@@ -1,8 +1,13 @@
 package dev.voir.moneta
 
+import dev.voir.decimal.Rounding
+
 /**
- * Convenient Kotlin extension on primitives:
- *  1000.toMoneta() == Money.fromInt(1000)
+ * Create [Moneta] from an [Int] interpreted as whole currency units.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this integer as whole units
  */
 fun Int.toMoneta(
     currency: Currency = Currency(),
@@ -13,6 +18,13 @@ fun Int.toMoneta(
     rounding = rounding
 )
 
+/**
+ * Create [Moneta] from a [Long] interpreted as whole currency units.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this long as whole units
+ */
 fun Long.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -23,6 +35,13 @@ fun Long.toMoneta(
         rounding = rounding
     )
 
+/**
+ * Create [Moneta] from a [Short] interpreted as whole currency units.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this short as whole units
+ */
 fun Short.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -33,6 +52,13 @@ fun Short.toMoneta(
         rounding = rounding
     )
 
+/**
+ * Create [Moneta] from a [Byte] interpreted as whole currency units.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this byte as whole units
+ */
 fun Byte.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -43,6 +69,15 @@ fun Byte.toMoneta(
         rounding = rounding
     )
 
+/**
+ * Create [Moneta] from a [Double] interpreted as decimal whole currency units.
+ *
+ * Prefer string input for authoritative money values when possible.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this double as whole units
+ */
 fun Double.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -53,6 +88,15 @@ fun Double.toMoneta(
         rounding = rounding
     )
 
+/**
+ * Create [Moneta] from a [Float] interpreted as decimal whole currency units.
+ *
+ * Prefer string input for authoritative money values when possible.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this float as whole units
+ */
 fun Float.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -63,6 +107,16 @@ fun Float.toMoneta(
         rounding = rounding
     )
 
+/**
+ * Create [Moneta] from a generic [Number].
+ *
+ * Known primitive types are routed to their dedicated factories; other implementations
+ * are parsed from `toString()`.
+ *
+ * @param currency currency metadata stored on the resulting [Moneta]
+ * @param rounding rounding mode used while scaling to [Currency.decimals]
+ * @return [Moneta] representing this number as whole units
+ */
 fun Number.toMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -74,8 +128,13 @@ fun Number.toMoneta(
     )
 
 /**
- * Helpers to create Money from atomic numeric literals with clearer names:
- *  - 100L.toAtomicMoney(usd) -> treats 100 as "100 cents" (if usd.decimals==2)
+ * Create [Moneta] from an [Int] interpreted as atomic smallest units.
+ *
+ * For a currency with `decimals == 2`, `100.toAtomicMoneta(currency)` represents `1.00`.
+ *
+ * @param currency currency metadata whose [Currency.decimals] controls decimal placement
+ * @param rounding rounding mode used after converting atomic units to decimal units
+ * @return [Moneta] represented by this atomic integer
  */
 fun Int.toAtomicMoneta(
     currency: Currency = Currency(),
@@ -86,6 +145,13 @@ fun Int.toAtomicMoneta(
     rounding = rounding
 )
 
+/**
+ * Create [Moneta] from a [Long] interpreted as atomic smallest units.
+ *
+ * @param currency currency metadata whose [Currency.decimals] controls decimal placement
+ * @param rounding rounding mode used after converting atomic units to decimal units
+ * @return [Moneta] represented by this atomic long
+ */
 fun Long.toAtomicMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -95,6 +161,14 @@ fun Long.toAtomicMoneta(
     rounding = rounding
 )
 
+/**
+ * Create [Moneta] from a string containing an atomic smallest-unit integer.
+ *
+ * @param currency currency metadata whose [Currency.decimals] controls decimal placement
+ * @param rounding rounding mode used after converting atomic units to decimal units
+ * @return [Moneta] represented by this atomic integer string
+ * @throws IllegalArgumentException when the receiver is not a valid integer string
+ */
 fun String.toAtomicMoneta(
     currency: Currency = Currency(),
     rounding: Rounding = Rounding.HALF_UP
@@ -105,72 +179,25 @@ fun String.toAtomicMoneta(
 )
 
 /**
- * Tries to normalize any user-entered text into a decimal number string.
+ * Operator alias for [Moneta.plus].
  *
- * Rules:
- * - Removes all whitespace.
- * - Removes all characters except digits, '.' , ',' and '-'.
- * - Keeps only the leading minus sign; any other minus signs are discarded.
- * - Treats the last '.' or ',' as the decimal separator.
- * - Treats all earlier separators as grouping separators and removes them.
- * - Removes trailing decimal separators with no fractional part.
- * - Returns null if there are no digits left after cleanup.
- *
- * Examples:
- * - "10 000" -> "10000"
- * - "10,5" -> "10.5"
- * - "1.234,56" -> "1234.56"
- * - "1,234.56" -> "1234.56"
- * - "12." -> "12"
- * - "abc" -> null
+ * @param other amount to add
+ * @return sum using the left operand's currency metadata
  */
-fun String.toDecimalStringOrNull(): String? {
-    val cleaned = this
-        .trim()
-        .replace("\\s+".toRegex(), "")
-        .replace("[^\\d.,-]".toRegex(), "")
-
-    if (cleaned.isBlank()) return null
-
-    val isNegative = cleaned.startsWith("-")
-    val unsigned = cleaned.removePrefix("-").replace("-", "")
-
-    if (unsigned.isBlank()) return null
-
-    val lastSeparatorIndex = maxOf(
-        unsigned.lastIndexOf('.'),
-        unsigned.lastIndexOf(',')
-    )
-
-    val hasAnyDigit = unsigned.any(Char::isDigit)
-    val endsWithSeparator = unsigned.endsWith('.') || unsigned.endsWith(',')
-
-    if (!hasAnyDigit && !endsWithSeparator) return null
-
-    val normalized = buildString {
-        if (isNegative) append('-')
-
-        if (lastSeparatorIndex == -1) {
-            append(unsigned.filter(Char::isDigit))
-        } else {
-            val integer = unsigned
-                .substring(0, lastSeparatorIndex)
-                .filter(Char::isDigit)
-
-            append(integer.ifEmpty { "0" })
-            append('.')
-
-            append(
-                unsigned
-                    .substring(lastSeparatorIndex + 1)
-                    .filter(Char::isDigit)
-            )
-        }
-    }
-
-    return normalized.takeIf { it.any(Char::isDigit) || it.endsWith('.') }
-}
-
 operator fun Moneta.plus(other: Moneta): Moneta = this.plus(other)
+
+/**
+ * Operator alias for [Moneta.minus].
+ *
+ * @param other amount to subtract
+ * @return difference using the left operand's currency metadata
+ */
 operator fun Moneta.minus(other: Moneta): Moneta = this.minus(other)
+
+/**
+ * Operator alias for multiplying [Moneta] by an [Int] whole-number factor.
+ *
+ * @param factor integer multiplier
+ * @return product using the left operand's currency metadata
+ */
 operator fun Moneta.times(factor: Int): Moneta = this.times(factor.toLong())

@@ -1,13 +1,15 @@
 package dev.voir.moneta
 
+import dev.voir.decimal.Rounding
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MonetaTest {
     @Test
-    fun constructFromIntegers_wholeUnits() {
+    fun `construct from integer whole units`() {
         val m1 = Moneta.fromInt(5, Currency(code = "usd", decimals = 2))   // 5 -> 5.00
         assertEquals("5.00", m1.toDecimalString(2))
 
@@ -22,7 +24,7 @@ class MonetaTest {
     }
 
     @Test
-    fun constructFromAtomicValues() {
+    fun `construct from atomic values`() {
         // 150 cents -> $1.50
         val a = Moneta.fromAtomicInt(150, Currency(code = "usd", decimals = 2))
         assertEquals("1.50", a.toDecimalString(2))
@@ -47,7 +49,7 @@ class MonetaTest {
     }
 
     @Test
-    fun constructFromDecimalStrings_and_fromDecimalString() {
+    fun `construct from decimal strings`() {
         val m = Moneta.fromDecimalString("1.2345", Currency(code = "usd", decimals = 2))
         // scaled to USD decimals (2) at construction (HALF_UP default)
         assertEquals("1.23", m.toDecimalString(2))
@@ -63,19 +65,19 @@ class MonetaTest {
     }
 
     @Test
-    fun constructFromDoubleAndFloat() {
+    fun `construct from double and float`() {
         val d = Moneta.fromDouble(1.5, Currency(code = "usd", decimals = 2))
-        // fromDouble uses Decimal.of(value.toString()) then setScale to currency.decimals
+        // fromDouble delegates to Decimal.fromDouble, then scales to currency.decimals.
         assertEquals("1.50", d.toDecimalString(2))
 
         val f = Moneta.fromFloat(0.125f, Currency(code = "btc", decimals = 8))
-        // float -> string conversion may produce "0.125" -> scaled to BTC decimals (8)
+        // Float has no Decimal-native constructor, so Moneta parses its string form.
         // so ensure at least significant digits preserved
         assertTrue(f.toDecimalString().startsWith("0.125"))
     }
 
     @Test
-    fun arithmetic_plus_minus_times_divide() {
+    fun `perform plus minus times and divide arithmetic`() {
         val a = Moneta.fromDecimalString("10.00", Currency(code = "usd", decimals = 2))
         val b = Moneta.fromDecimalString("2.50", Currency(code = "usd", decimals = 2))
 
@@ -95,7 +97,7 @@ class MonetaTest {
     }
 
     @Test
-    fun toAtomicString_and_rounding_behavior() {
+    fun `convert to atomic string with rounding`() {
         // HALF_UP rounding: 1.235 -> 1.24 -> atomic 124 cents
         val m = Moneta.fromDecimalString(
             "1.235",
@@ -120,7 +122,17 @@ class MonetaTest {
     }
 
     @Test
-    fun negative_values_and_zero() {
+    fun `return null from toAtomicLongOrNull when atomic value overflows Long`() {
+        val tooLarge = Moneta.fromAtomicString(
+            "9223372036854775808",
+            Currency(code = "ledger", decimals = 0)
+        )
+
+        assertNull(tooLarge.toAtomicLongOrNull())
+    }
+
+    @Test
+    fun `normalize negative factory input and construct zero`() {
         val neg = Moneta.fromDecimalString("-3.50", Currency(code = "usd", decimals = 2))
         assertEquals("3.50", neg.toDecimalString(2))
 
@@ -131,7 +143,7 @@ class MonetaTest {
     }
 
     @Test
-    fun fromNumber_generic_dispatch() {
+    fun `dispatch generic Number inputs to matching constructors`() {
         val n1: Number = 7
         val m1 = Moneta.fromNumber(n1, Currency(code = "usd", decimals = 2))
         assertEquals("7.00", m1.toDecimalString(2))
@@ -143,7 +155,7 @@ class MonetaTest {
     }
 
     @Test
-    fun big_currency_decimals_eth_example() {
+    fun `support high precision ETH decimals`() {
         val ethVal = Moneta.fromDecimalString("0.5", Currency(code = "eth", decimals = 18))
         // ensure internal decimal precision supports 18 decimals when requested
         assertEquals("0.500000000000000000", ethVal.toDecimalString(18))
