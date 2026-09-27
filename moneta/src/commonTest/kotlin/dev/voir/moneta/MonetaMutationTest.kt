@@ -1,55 +1,49 @@
 package dev.voir.moneta
 
 import dev.voir.decimal.Decimal
+import dev.voir.decimal.Rounding
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class MonetaMutationTest {
-
-    private val usd = Currency(code = "USD", decimals = 2, symbol = "$")
-    private val btc = Currency(code = "BTC", decimals = 8, symbol = "₿")
-
     @Test
-    fun `withCurrency re-applies same value with new precision`() {
-        val usdValue = Moneta.fromDecimalString("1.23", usd)
-        val btcValue = usdValue.withCurrency(btc)
+    fun `withCurrency re-labels the amount with more decimals`() {
+        val btcValue = money("1.23").withCurrency(BTC)
 
-        assertEquals("1.23$", usdValue.toFormattedString(appendSymbol = true))
-        assertEquals("1.23₿", btcValue.toFormattedString(appendSymbol = true))
-        assertEquals("1.23000000", btcValue.toDecimalString(scale = 8))
-        assertEquals(123L, usdValue.toAtomicLongOrNull())
-        assertEquals(123000000L, btcValue.toAtomicLongOrNull())
+        assertEquals(BTC, btcValue.currency)
+        assertEquals("1.23000000", btcValue.toDecimalString(8))
+        assertEquals(123_000_000L, btcValue.toAtomicLong())
     }
 
     @Test
-    fun `withValue replaces decimal amount and keeps currency`() {
-        val value = Moneta.zero()
-            .withCurrency(usd)
-            .withValue(Decimal.of("9.90"))
-
-        assertEquals(usd, value.currency)
-        assertEquals("9.9$", value.toFormattedString(appendSymbol = true))
-        assertEquals(990L, value.toAtomicLongOrNull())
+    fun `withCurrency rounds to fewer decimals`() {
+        assertEquals(money("1.23"), money("1.23456789", BTC).withCurrency(USD))
+        assertEquals(Moneta.fromInt(1, JPY), money("1.49").withCurrency(JPY))
+        assertEquals(Moneta.fromInt(1, JPY), money("1.50").withCurrency(JPY, Rounding.DOWN))
     }
 
     @Test
-    fun `withDecimalString parses final calculator value`() {
-        val value = Moneta.zero()
-            .withCurrency(usd)
-            .withDecimalString("2.40")
+    fun `withValue replaces the amount and keeps currency`() {
+        val value = Moneta.zero(USD).withValue(Decimal.parse("9.999"))
 
-        assertEquals("2.4", value.toDecimalString())
-        assertEquals("2.40", value.toDecimalString(scale = 2))
+        assertEquals(money("10.00"), value)
+    }
+
+    @Test
+    fun `withValue stores absolute value`() {
+        assertEquals(money("5"), Moneta.zero(USD).withValue(Decimal.parse("-5")))
+    }
+
+    @Test
+    fun `withDecimalString parses text in the same currency`() {
+        val value = Moneta.zero(USD).withDecimalString("2.40")
+
+        assertEquals(money("2.4"), value)
         assertEquals("2.4$", value.toFormattedString(appendSymbol = true))
     }
 
     @Test
-    fun `withAtomicLong replaces amount from atomic units`() {
-        val value = Moneta.zero()
-            .withCurrency(usd)
-            .withAtomicLong(1234L)
-
-        assertEquals("12.34", value.toDecimalString())
-        assertEquals(1234L, value.toAtomicLongOrNull())
+    fun `withAtomicLong replaces the amount from atomic units`() {
+        assertEquals(money("12.34"), Moneta.zero(USD).withAtomicLong(1234L))
     }
 }

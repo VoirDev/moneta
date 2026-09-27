@@ -5,6 +5,7 @@ plugins {
 }
 
 kotlin {
+    explicitApi()
     jvmToolchain(21)
 
     jvm()
@@ -19,29 +20,6 @@ kotlin {
     iosSimulatorArm64()
 
     sourceSets {
-        val commonMain = getByName("commonMain")
-        val commonTest = getByName("commonTest")
-        val jvmMain = getByName("jvmMain")
-        val androidMain = getByName("androidMain")
-        val iosX64Main = getByName("iosX64Main")
-        val iosArm64Main = getByName("iosArm64Main")
-        val iosSimulatorArm64Main = getByName("iosSimulatorArm64Main")
-        val macosArm64Main = getByName("macosArm64Main")
-
-        val jvmAndroidMain = create("jvmAndroidMain") {
-            dependsOn(commonMain)
-        }
-        val appleMain = findByName("appleMain") ?: create("appleMain") {
-            dependsOn(commonMain)
-        }
-
-        jvmMain.dependsOn(jvmAndroidMain)
-        androidMain.dependsOn(jvmAndroidMain)
-        iosX64Main.dependsOn(appleMain)
-        iosArm64Main.dependsOn(appleMain)
-        iosSimulatorArm64Main.dependsOn(appleMain)
-        macosArm64Main.dependsOn(appleMain)
-
         commonMain.dependencies {
             api(libs.voir.decimal)
         }

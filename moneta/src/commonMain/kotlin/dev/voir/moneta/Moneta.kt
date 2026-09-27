@@ -4,564 +4,598 @@ import dev.voir.decimal.Decimal
 import dev.voir.decimal.Rounding
 
 /**
- * Compact, immutable wrapper for a monetary amount that **includes currency metadata**.
+ * Immutable, non-negative monetary amount together with its [Currency].
  *
- * `Moneta` stores two pieces of information together:
- *  1. the high-precision decimal amount (`value`)
- *  2. the currency metadata (`currency`)
+ * Every instance holds two invariants:
+ *  1. [value] is never negative. Moneta models an amount of money, not a signed balance; the
+ *     direction of a transfer belongs to the caller's domain model. Factories and `with*` helpers
+ *     store the absolute value of their input, and operations that would produce a negative amount
+ *     (subtracting a larger amount, negative factors, divisors, or rates) are rejected.
+ *  2. [value] has at most [Currency.decimals] fractional digits. Factories and every arithmetic
+ *     operation round to that scale, so an amount always maps exactly to a whole number of atomic
+ *     units (cents, satoshis, wei).
  *
- * The associated [Currency] contains:
- *  - `code` — currency identifier, e.g. "USD", "EUR"
- *  - `decimals` — number of fractional digits used for atomic conversions
- *  - `symbol` — optional display symbol, e.g. "$", "€"
+ * Arithmetic and comparison require both operands to have the same [Currency]. Equality is numeric
+ * and includes the currency: `1.5 USD` equals `1.50 USD` but not `1.5 EUR`.
  *
- * Internally the amount is stored as a high-precision [Decimal] instance. `Moneta` is
- * **decimal-based** and intended to be exact for fiat and crypto usage when combined with
- * the correct [Currency.decimals] for the currency.
- *
- * Examples:
  * ```
- * val usd = Currency(code = "USD", decimals = 2, symbol = "$")
- * val btc = Currency(code = "BTC", decimals = 8, symbol = "₿")
+ * val usd = Currency(decimals = 2, code = "USD", symbol = "$")
  *
- * // create 1.235 USD and round to the USD scale (2 decimals) using default HALF_UP:
- * val m = Moneta.fromDecimalString("1.235", currency = usd) // -> 1.24 USD
- *
- * // construct from a whole-unit Int with USD scale:
- * val m2 = Moneta.fromInt(1, currency = usd) // -> 1.00 USD
- *
- * // atomic conversions: build from atomic smallest units (cents, satoshis, etc.)
- * val satoshiAmount = Moneta.fromAtomicLong(150000000L, currency = btc)
- *
- * // get an atomic integer string for persistence (e.g. store cents or satoshis)
- * val atomicString = m.toAtomicString() // e.g. "124"
+ * val price = Moneta.fromDecimalString("1.235", usd)   // 1.24 USD, HALF_UP by default
+ * val total = price * 3                                 // 3.72 USD
+ * val shares = total.split(2)                           // [1.86 USD, 1.86 USD]
+ * val cents = total.toAtomicLong()                      // 372
  * ```
  *
- * Notes:
- * - Prefer `fromDecimalString(...)` when you have an authoritative decimal text input
- *   (user input, JSON, CSV) to avoid floating-point parsing artifacts.
- * - Floating constructors (`fromDouble`, `fromFloat`) should only be used when the
- *   primitive value is already an acceptable source of truth. Prefer [fromDecimalString]
- *   for user input, JSON payloads, and other authoritative decimal text.
- * - Public factory methods normalize input to an absolute value. Arithmetic methods operate on
- *   stored decimal values directly, so subtraction or negative factors can produce signed results.
+ * Prefer [fromDecimalString] or [fromAtomicString] for authoritative input such as user text,
+ * JSON, or persisted values; floating-point factories are for values that are already `Double` or
+ * `Float` by nature.
  *
- * @property value underlying high-precision decimal value
- * @property currency currency metadata stored with the amount
+ * @property value Non-negative amount with at most [Currency.decimals] fractional digits.
+ * @property currency Currency metadata of this amount.
  */
-class Moneta private constructor(
-    val value: Decimal,
-    val currency: Currency,
-) {
+public class Moneta private constructor(
+    public val value: Decimal,
+    public val currency: Currency,
+) : Comparable<Moneta> {
 
     /**
-     * Factory and helper constructors for `Moneta`.
+     * Factories for [Moneta].
      *
-     * All factory methods accept a [Currency] so the returned `Moneta` is a
-     * self-contained monetary value (value + currency metadata).
-     *
-     * Conventions:
-     * - Integer primitives (`Int`, `Long`, `Short`, `Byte`) are interpreted as *whole units*
-     *   of the currency. Example: `fromInt(1, currency = usd)` -> `1.00` USD when `usd.decimals == 2`.
-     * - Floating primitives (`Double`, `Float`) are converted through [Decimal]. Prefer
-     *   [fromDecimalString] when exact textual decimal input is the source of truth.
-     * - Atomic constructors (`fromAtomic*`) expect the smallest unit count (cents, satoshis,
-     *   wei) and build the decimal by moving the point left by `currency.decimals`.
-     *
-     * Rounding:
-     * - When scaling to `currency.decimals` the default rounding mode is `Rounding.HALF_UP`.
-     *   You may pass a different `rounding` parameter to control behavior where needed.
+     * Every factory stores the absolute value of its input and rounds it to [Currency.decimals].
+     * Integer factories interpret their input as whole currency units; `fromAtomic*` factories
+     * interpret it as a count of the smallest unit.
      */
-    companion object Companion {
+    public companion object {
         /**
-         * Internal constructor bridge used by factory and conversion helpers.
+         * Creates an amount from a decimal value.
          *
-         * The incoming [value] is scaled to [currency.decimals] with [rounding] and stored
-         * as an absolute amount, matching the public factories' current input-normalization model.
-         *
-         * @param value decimal amount before currency-scale normalization
-         * @param currency metadata to attach to the created [Moneta]
-         * @param rounding rounding mode used when [value] has more fractional digits than allowed
-         * @return normalized monetary value with [currency] metadata
+         * @param value Amount in whole currency units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @param rounding Rounding applied when [value] has more than [Currency.decimals] fractional
+         * digits.
+         * @return Amount rounded to the currency scale.
          */
-        internal fun fromDecimal(
+        public fun fromDecimal(
             value: Decimal,
             currency: Currency = Currency(),
             rounding: Rounding = Rounding.HALF_UP,
         ): Moneta = Moneta(
-            value = value.setScale(currency.decimals, rounding).abs(),
+            value = value.abs().setScale(currency.decimals, rounding),
             currency = currency,
         )
 
         /**
-         * Construct from an integer whole-unit value.
+         * Creates an amount from plain decimal text.
          *
-         * @param value whole units (e.g. `1` => `1.00` for USD if `currency.decimals == 2`)
-         * @param currency currency metadata stored on the resulting Moneta
-         * @param rounding how to round when scaling to currency decimals (default HALF_UP)
-         * @return `Moneta` representing `value` in the given currency
+         * This is the preferred factory for user input, JSON, and CSV amounts because the text is
+         * parsed exactly, without floating-point artifacts.
+         *
+         * @param value Plain decimal text such as `"123.45"`; a sign is accepted and discarded.
+         * @param currency Currency of the amount.
+         * @param rounding Rounding applied when [value] has more than [Currency.decimals] fractional
+         * digits.
+         * @return Amount rounded to the currency scale.
+         * @throws IllegalArgumentException When [value] is not plain decimal text.
          */
-        fun fromInt(
-            value: Int,
+        public fun fromDecimalString(
+            value: String,
             currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromDecimal(
-            value = Decimal.fromInt(value),
-            currency = currency,
-            rounding = rounding,
-        )
+            rounding: Rounding = Rounding.HALF_UP,
+        ): Moneta = fromDecimal(Decimal.parse(value), currency, rounding)
 
         /**
-         * Construct from a Long whole-unit value.
+         * Creates an amount from whole currency units.
          *
-         * Same semantics as [fromInt] but accepts larger ranges.
-         *
-         * @param value whole units to represent
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] representing [value] whole currency units
+         * @param value Whole units, so `1` is `1.00` for a two-decimal currency; its sign is
+         * discarded.
+         * @param currency Currency of the amount.
+         * @return Amount of [value] whole units.
          */
-        fun fromLong(
-            value: Long,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromDecimal(
-            value = Decimal.fromLong(value),
-            currency = currency,
-            rounding = rounding,
-        )
+        public fun fromInt(value: Int, currency: Currency = Currency()): Moneta =
+            fromDecimal(Decimal.fromInt(value), currency)
 
         /**
-         * Construct from Short (delegates to [fromInt]).
+         * Creates an amount from whole currency units.
          *
-         * @param value whole units to represent
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] representing [value] whole currency units
+         * @param value Whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @return Amount of [value] whole units.
          */
-        fun fromShort(
-            value: Short,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromInt(
-            value = value.toInt(),
-            currency = currency,
-            rounding = rounding
-        )
+        public fun fromLong(value: Long, currency: Currency = Currency()): Moneta =
+            fromDecimal(Decimal.fromLong(value), currency)
 
         /**
-         * Construct from Byte (delegates to [fromInt]).
+         * Creates an amount from whole currency units.
          *
-         * @param value whole units to represent
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] representing [value] whole currency units
+         * @param value Whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @return Amount of [value] whole units.
          */
-        fun fromByte(
-            value: Byte,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromInt(
-            value.toInt(),
-            currency = currency,
-            rounding = rounding
-        )
+        public fun fromShort(value: Short, currency: Currency = Currency()): Moneta =
+            fromInt(value.toInt(), currency)
 
         /**
-         * Construct from [Double] whole-unit input.
+         * Creates an amount from whole currency units.
          *
-         * [Decimal.fromDouble] is used for conversion. Prefer [fromDecimalString] when
-         * you already have canonical decimal text.
-         *
-         * @param value the Double value interpreted as whole currency units
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] representing [value] in whole currency units
+         * @param value Whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @return Amount of [value] whole units.
          */
-        fun fromDouble(
+        public fun fromByte(value: Byte, currency: Currency = Currency()): Moneta =
+            fromInt(value.toInt(), currency)
+
+        /**
+         * Creates an amount from a [Double] in whole currency units.
+         *
+         * The digits printed by `Double.toString()` are used, so `0.1` becomes exactly `0.1`.
+         *
+         * @param value Finite amount in whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @param rounding Rounding applied when [value] has more than [Currency.decimals] fractional
+         * digits.
+         * @return Amount rounded to the currency scale.
+         * @throws IllegalArgumentException When [value] is `NaN` or infinite.
+         */
+        public fun fromDouble(
             value: Double,
             currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromDecimal(
-            value = Decimal.fromDouble(value),
-            currency = currency,
-            rounding = rounding,
-        )
+            rounding: Rounding = Rounding.HALF_UP,
+        ): Moneta = fromDecimal(Decimal.fromDouble(value), currency, rounding)
 
         /**
-         * Construct from [Float] whole-unit input.
+         * Creates an amount from a [Float] in whole currency units.
          *
-         * Decimal does not expose a dedicated Float constructor, so the Float is converted
-         * from its Kotlin string representation. Prefer [fromDecimalString] when you
-         * already have canonical decimal text.
+         * The digits printed by `Float.toString()` are used, so `0.1f` becomes exactly `0.1` rather
+         * than the wider binary value a plain `Float.toDouble()` would expose.
          *
-         * @param value the Float value interpreted as whole currency units
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] representing [value] in whole currency units
+         * @param value Finite amount in whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @param rounding Rounding applied when [value] has more than [Currency.decimals] fractional
+         * digits.
+         * @return Amount rounded to the currency scale.
+         * @throws IllegalArgumentException When [value] is `NaN` or infinite.
          */
-        fun fromFloat(
+        public fun fromFloat(
             value: Float,
             currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
+            rounding: Rounding = Rounding.HALF_UP,
         ): Moneta = fromDecimal(
-            value = Decimal.of(value.toString()),
+            // Re-parsing the Float's shortest text as a Double keeps its printed digits, and
+            // Decimal.fromDouble expands scientific notation such as "1.0E10".
+            value = Decimal.fromDouble(value.toString().toDouble()),
             currency = currency,
             rounding = rounding,
         )
 
         /**
-         * Construct from a textual decimal where the text is authoritative.
+         * Creates an amount from any [Number] in whole currency units.
          *
-         * Use this when you want deterministic decimal parsing (recommended for
-         * user-entered amounts, JSON payloads with decimal strings, etc.).
+         * Kotlin primitive numbers use their dedicated factory; other implementations are parsed
+         * from `toString()`, which must be plain decimal text.
          *
-         * Example: `fromDecimalString("0.1", usd)` -> exactly `0.10` USD.
-         *
-         * @param value decimal representation (e.g. "123.45", "-0.001"; sign is normalized away)
-         * @param currency currency metadata including code and decimal precision
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] parsed from [value] and normalized to [currency]
+         * @param value Amount in whole units; its sign is discarded.
+         * @param currency Currency of the amount.
+         * @param rounding Rounding applied when [value] has more than [Currency.decimals] fractional
+         * digits.
+         * @return Amount rounded to the currency scale.
+         * @throws IllegalArgumentException When [value] is not finite or its text is not plain
+         * decimal text.
          */
-        fun fromDecimalString(
-            value: String,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromDecimal(
-            value = Decimal.of(value),
-            currency = currency,
-            rounding = rounding,
-        )
-
-        /**
-         * Construct from an atomic integer (smallest unit count) provided as Int.
-         *
-         * Example: `fromAtomicInt(150, usd)` -> `1.50` USD when `usd.decimals == 2`.
-         *
-         * @param value count of smallest units (integer)
-         * @param currency currency metadata whose [Currency.decimals] controls point movement
-         * @param rounding rounding mode used after moving the decimal point left
-         * @return [Moneta] represented by [value] atomic units
-         */
-        fun fromAtomicInt(
-            value: Int,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromAtomicString(
-            value = value.toString(),
-            currency = currency,
-            rounding = rounding,
-        )
-
-        /**
-         * Construct from atomic units provided as Long.
-         *
-         * Use for large atomic counts such as long-running ledger aggregates.
-         *
-         * @param value count of smallest units
-         * @param currency currency metadata whose [Currency.decimals] controls point movement
-         * @param rounding rounding mode used after moving the decimal point left
-         * @return [Moneta] represented by [value] atomic units
-         */
-        fun fromAtomicLong(
-            value: Long,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromAtomicString(
-            value = value.toString(),
-            currency = currency,
-            rounding = rounding,
-        )
-
-        /**
-         * Construct from an atomic integer represented as a decimal string.
-         *
-         * This is convenient for persisted data (databases, blockchain, APIs) that
-         * already store atomic amounts as strings.
-         *
-         * @param value integer string (e.g. "12345")
-         * @param currency currency metadata whose [Currency.decimals] controls point movement
-         * @param rounding rounding mode used after moving the decimal point left
-         * @return [Moneta] represented by [value] atomic units
-         */
-        fun fromAtomicString(
-            value: String,
-            currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta = fromDecimal(
-            value = Decimal.ofInteger(value).movePointLeft(currency.decimals),
-            currency = currency,
-            rounding = rounding,
-        )
-
-        /**
-         * Generic constructor accepting any Kotlin [Number].
-         *
-         * Routes to the most appropriate specific constructor for known types.
-         * - Int/Long/Short/Byte → whole units
-         * - Double/Float        → converted through their dedicated factory behavior
-         *
-         * For unknown `Number` subclasses the `toString()` representation is parsed.
-         *
-         * @param value numeric source value
-         * @param currency currency metadata stored on the resulting [Moneta]
-         * @param rounding rounding mode used while scaling to [Currency.decimals]
-         * @return [Moneta] created using the matching primitive factory where possible
-         */
-        fun fromNumber(
+        public fun fromNumber(
             value: Number,
             currency: Currency = Currency(),
-            rounding: Rounding = Rounding.HALF_UP
-        ): Moneta {
-            return when (value) {
-                is Int -> fromInt(value, currency = currency, rounding = rounding)
-                is Long -> fromLong(value, currency = currency, rounding = rounding)
-                is Short -> fromShort(value, currency = currency, rounding = rounding)
-                is Byte -> fromByte(value, currency = currency, rounding = rounding)
-                is Double -> fromDouble(value, currency = currency, rounding = rounding)
-                is Float -> fromFloat(value, currency = currency, rounding = rounding)
-                else -> {
-                    fromDecimal(
-                        value = Decimal.of(value.toString()),
-                        currency = currency,
-                        rounding = rounding,
-                    )
-                }
-            }
+            rounding: Rounding = Rounding.HALF_UP,
+        ): Moneta = when (value) {
+            is Int -> fromInt(value, currency)
+            is Long -> fromLong(value, currency)
+            is Short -> fromShort(value, currency)
+            is Byte -> fromByte(value, currency)
+            is Double -> fromDouble(value, currency, rounding)
+            is Float -> fromFloat(value, currency, rounding)
+            else -> fromDecimalString(value.toString(), currency, rounding)
         }
 
         /**
-         * Returns a zero-valued `Moneta` (decimal zero) with default currency metadata.
+         * Creates an amount from a count of the currency's smallest unit.
          *
-         * @return zero amount with default [Currency] metadata
+         * @param value Atomic units, so `150` is `1.50` for a two-decimal currency; its sign is
+         * discarded.
+         * @param currency Currency whose [Currency.decimals] places the decimal point.
+         * @return Amount of [value] atomic units.
          */
-        fun zero() = Moneta(Decimal.zero(), currency = Currency())
+        public fun fromAtomicInt(value: Int, currency: Currency = Currency()): Moneta =
+            fromAtomicDecimal(Decimal.fromInt(value), currency)
+
+        /**
+         * Creates an amount from a count of the currency's smallest unit.
+         *
+         * @param value Atomic units; its sign is discarded.
+         * @param currency Currency whose [Currency.decimals] places the decimal point.
+         * @return Amount of [value] atomic units.
+         */
+        public fun fromAtomicLong(value: Long, currency: Currency = Currency()): Moneta =
+            fromAtomicDecimal(Decimal.fromLong(value), currency)
+
+        /**
+         * Creates an amount from integer text counting the currency's smallest unit.
+         *
+         * Use this for persisted or transported atomic amounts that may exceed [Long], such as wei.
+         *
+         * @param value Base-10 integer text such as `"12345"`; a sign is accepted and discarded.
+         * @param currency Currency whose [Currency.decimals] places the decimal point.
+         * @return Amount of [value] atomic units.
+         * @throws IllegalArgumentException When [value] is not integer text.
+         */
+        public fun fromAtomicString(value: String, currency: Currency = Currency()): Moneta =
+            fromAtomicDecimal(Decimal.ofInteger(value), currency)
+
+        /**
+         * Returns a zero amount.
+         *
+         * @param currency Currency of the amount.
+         * @return Zero in [currency].
+         */
+        public fun zero(currency: Currency = Currency()): Moneta = Moneta(Decimal.zero(), currency)
+
+        /**
+         * Creates an amount from an integer count of atomic units.
+         *
+         * Moving the point left by [Currency.decimals] places yields at most that many fractional
+         * digits, so no rounding is needed.
+         *
+         * @param atomic Integer count of atomic units.
+         * @param currency Currency whose [Currency.decimals] places the decimal point.
+         * @return Amount of [atomic] units.
+         */
+        private fun fromAtomicDecimal(atomic: Decimal, currency: Currency): Moneta =
+            Moneta(atomic.abs().movePointLeft(currency.decimals), currency)
     }
 
     /**
-     * Add two monetary amounts. Currencies should match externally; this method only
-     * performs decimal addition of the underlying values and keeps this instance's currency.
+     * Returns whether this amount is zero.
      *
-     * Prefer to check currency equality before adding in your business logic.
-     *
-     * @param other amount to add to this value
-     * @return sum using this instance's [currency]
+     * @return `true` when [value] is numerically zero.
      */
-    fun plus(other: Moneta): Moneta = Moneta(this.value.add(other.value), this.currency)
+    public fun isZero(): Boolean = value.isZero()
 
     /**
-     * Subtract another monetary amount from this. The result can be negative.
+     * Adds another amount of the same currency.
      *
-     * As with [plus], currencies should match prior to subtraction.
-     *
-     * @param other amount to subtract from this value
-     * @return difference using this instance's [currency]
+     * @param other Amount to add.
+     * @return Exact sum in this currency.
+     * @throws IllegalArgumentException When [other] has a different currency.
      */
-    fun minus(other: Moneta): Moneta = Moneta(this.value.subtract(other.value), this.currency)
+    public operator fun plus(other: Moneta): Moneta {
+        requireSameCurrency(other, "add")
+        return Moneta(value + other.value, currency)
+    }
 
     /**
-     * Multiply the monetary amount by an integer factor. Negative factors produce negative results.
+     * Subtracts another amount of the same currency.
      *
-     * Useful for quantity multiplication, fee scaling, etc.
-     *
-     * @param factor integer multiplier
-     * @return product using this instance's [currency]
+     * @param other Amount to subtract; must not exceed this amount.
+     * @return Exact difference in this currency.
+     * @throws IllegalArgumentException When [other] has a different currency or is larger than
+     * this amount.
      */
-    fun times(factor: Long): Moneta =
-        Moneta(this.value.multiplyInteger(factor.toString()), this.currency)
+    public operator fun minus(other: Moneta): Moneta {
+        requireSameCurrency(other, "subtract")
+        require(value >= other.value) {
+            "Cannot subtract $other from $this: the result would be negative."
+        }
+        return Moneta(value - other.value, currency)
+    }
 
     /**
-     * Multiply the monetary amount by an arbitrary decimal factor. Negative factors produce negative results.
+     * Multiplies this amount by a whole-number quantity.
      *
-     * Use when applying fractional multipliers or normalized rates.
-     *
-     * @param factor decimal multiplier
-     * @return product using this instance's [currency]
+     * @param factor Non-negative quantity.
+     * @return Exact product in this currency.
+     * @throws IllegalArgumentException When [factor] is negative.
      */
-    fun timesDecimal(factor: Decimal): Moneta = Moneta(this.value.multiply(factor), this.currency)
+    public operator fun times(factor: Int): Moneta = times(factor.toLong())
 
     /**
-     * Divide the monetary amount by an integer divisor. Negative divisors produce negative results.
+     * Multiplies this amount by a whole-number quantity.
      *
-     * @param factor integer divisor
-     * @param scale intermediate division scale (default 18) used to preserve precision
-     * @param rounding rounding mode applied to the quotient
-     * @return quotient using this instance's [currency]
+     * @param factor Non-negative quantity.
+     * @return Exact product in this currency.
+     * @throws IllegalArgumentException When [factor] is negative.
      */
-    fun divide(factor: Long, scale: Int = 18, rounding: Rounding = Rounding.HALF_UP): Moneta =
-        Moneta(this.value.divideInteger(factor.toString(), scale, rounding), this.currency)
+    public operator fun times(factor: Long): Moneta {
+        require(factor >= 0) { "Cannot multiply $this by $factor: the factor must not be negative." }
+        return Moneta(value * Decimal.fromLong(factor), currency)
+    }
 
     /**
-     * Return this value with different currency metadata.
+     * Multiplies this amount by a decimal factor using [Rounding.HALF_UP].
      *
-     * The underlying decimal amount is preserved and then normalized to [currency.decimals].
-     * This is useful when a calculator result is re-applied to a newly selected currency.
-     *
-     * @param currency currency metadata to attach to the returned [Moneta]
-     * @param rounding rounding mode used while normalizing to [currency.decimals]
-     * @return new [Moneta] with the same amount and new currency metadata
+     * @param factor Non-negative factor such as a tax rate or share.
+     * @return Product rounded to the currency scale.
+     * @throws IllegalArgumentException When [factor] is negative.
      */
-    fun withCurrency(
-        currency: Currency,
-        rounding: Rounding = Rounding.HALF_UP,
-    ): Moneta = fromDecimal(
-        value = value,
-        currency = currency,
-        rounding = rounding,
-    )
+    public operator fun times(factor: Decimal): Moneta = multiply(factor)
 
     /**
-     * Return this monetary value with a different decimal amount.
+     * Multiplies this amount by a decimal factor.
      *
-     * @param value new decimal amount before currency-scale normalization
-     * @param rounding rounding mode used while normalizing to this instance's currency precision
-     * @return new [Moneta] with [value] and this instance's [currency]
+     * @param factor Non-negative factor such as a tax rate or share.
+     * @param rounding Rounding applied to the product at the currency scale.
+     * @return Product rounded to the currency scale.
+     * @throws IllegalArgumentException When [factor] is negative.
      */
-    fun withValue(
-        value: Decimal,
-        rounding: Rounding = Rounding.HALF_UP,
-    ): Moneta = fromDecimal(
-        value = value,
-        currency = currency,
-        rounding = rounding,
-    )
+    public fun multiply(factor: Decimal, rounding: Rounding = Rounding.HALF_UP): Moneta {
+        require(factor.signum() >= 0) {
+            "Cannot multiply $this by $factor: the factor must not be negative."
+        }
+        return fromDecimal(value * factor, currency, rounding)
+    }
 
     /**
-     * Parse decimal text and return this monetary value with the parsed amount.
+     * Divides this amount by a whole number using [Rounding.HALF_UP].
      *
-     * @param value decimal text returned by a calculator or other final-value source
-     * @param rounding rounding mode used while normalizing to this instance's currency precision
-     * @return new [Moneta] with parsed [value] and this instance's [currency]
-     * @throws IllegalArgumentException when [value] is not valid decimal text
+     * Rounded quotients do not add back up to this amount; use [split] to share an amount.
+     *
+     * @param divisor Positive divisor.
+     * @return Quotient rounded to the currency scale.
+     * @throws IllegalArgumentException When [divisor] is negative.
+     * @throws ArithmeticException When [divisor] is zero.
      */
-    fun withDecimalString(
-        value: String,
-        rounding: Rounding = Rounding.HALF_UP,
-    ): Moneta = withValue(
-        value = Decimal.of(value),
-        rounding = rounding,
-    )
+    public operator fun div(divisor: Int): Moneta = divide(Decimal.fromInt(divisor))
 
     /**
-     * Replace the amount from atomic smallest units using this instance's currency precision.
+     * Divides this amount by a whole number using [Rounding.HALF_UP].
      *
-     * @param value atomic smallest-unit amount
-     * @param rounding rounding mode used after converting atomic units to decimal units
-     * @return new [Moneta] represented by [value] atomic units and this instance's [currency]
+     * Rounded quotients do not add back up to this amount; use [split] to share an amount.
+     *
+     * @param divisor Positive divisor.
+     * @return Quotient rounded to the currency scale.
+     * @throws IllegalArgumentException When [divisor] is negative.
+     * @throws ArithmeticException When [divisor] is zero.
      */
-    fun withAtomicLong(
-        value: Long,
-        rounding: Rounding = Rounding.HALF_UP,
-    ): Moneta = fromAtomicLong(
-        value = value,
-        currency = currency,
-        rounding = rounding,
-    )
+    public operator fun div(divisor: Long): Moneta = divide(Decimal.fromLong(divisor))
 
     /**
-     * Render the monetary value as plain decimal text.
+     * Divides this amount by a decimal using [Rounding.HALF_UP].
      *
-     * When [scale] is null, this returns [Decimal.toPlainString], which trims insignificant
-     * trailing zeros. When [scale] is provided, the value is rounded and padded to exactly
-     * that many fractional digits using [Decimal.toFormattedString] without grouping.
-     *
-     * @param scale exact fraction digit count to render, or null for the Decimal plain form
-     * @return decimal text without currency code, symbol, or digit grouping
+     * @param divisor Positive divisor.
+     * @return Quotient rounded to the currency scale.
+     * @throws IllegalArgumentException When [divisor] is negative.
+     * @throws ArithmeticException When [divisor] is zero.
      */
-    fun toDecimalString(scale: Int? = null): String {
-        return if (scale == null) {
-            value.toPlainString()
-        } else {
-            value.toFormattedString(scale, scale, Rounding.HALF_UP, '.', null)
+    public operator fun div(divisor: Decimal): Moneta = divide(divisor)
+
+    /**
+     * Divides this amount by a decimal.
+     *
+     * The exact quotient is rounded once, directly to the currency scale. Rounded quotients do not
+     * add back up to this amount; use [split] to share an amount without losing atomic units.
+     *
+     * @param divisor Positive divisor.
+     * @param rounding Rounding applied to the quotient at the currency scale.
+     * @return Quotient rounded to the currency scale.
+     * @throws IllegalArgumentException When [divisor] is negative.
+     * @throws ArithmeticException When [divisor] is zero.
+     */
+    public fun divide(divisor: Decimal, rounding: Rounding = Rounding.HALF_UP): Moneta {
+        require(divisor.signum() >= 0) {
+            "Cannot divide $this by $divisor: the divisor must not be negative."
+        }
+        return Moneta(value.divide(divisor, currency.decimals, rounding), currency)
+    }
+
+    /**
+     * Splits this amount into [parts] shares that add up exactly to this amount.
+     *
+     * Shares differ by at most one atomic unit; the leftover units go to the first shares. For
+     * example, `10.00 USD` split into 3 is `[3.34, 3.33, 3.33]`.
+     *
+     * @param parts Number of shares; must be positive.
+     * @return [parts] amounts in this currency, largest first.
+     * @throws IllegalArgumentException When [parts] is not positive.
+     */
+    public fun split(parts: Int): List<Moneta> {
+        require(parts > 0) { "Cannot split $this into $parts parts: parts must be positive." }
+
+        val decimals = currency.decimals
+        val atomic = value.movePointRight(decimals)
+        val partCount = Decimal.fromInt(parts)
+        val baseAtomic = atomic.divide(partCount, 0, Rounding.DOWN)
+        // The remainder is below parts, so it always fits in an Int.
+        val leftoverUnits = (atomic - baseAtomic * partCount).toIntegerString().toInt()
+
+        val base = baseAtomic.movePointLeft(decimals)
+        val baseWithUnit = base + Decimal.one().movePointLeft(decimals)
+        return List(parts) { index ->
+            Moneta(if (index < leftoverUnits) baseWithUnit else base, currency)
         }
     }
 
     /**
-     * Format a [Moneta] amount as grouped decimal text for display.
+     * Returns the same amount in another currency without exchange-rate conversion.
      *
-     * Formatting is delegated to [dev.voir.decimal.Decimal.toFormattedString], with
-     * [currency][Moneta.currency] precision used as the maximum fractional precision when
-     * [decimals] is null.
+     * Use this to re-label a value, for example when a user picks a different currency for an
+     * amount they typed. To convert between currencies, use [convertByRate].
      *
-     * @param decimals exact fractional digit count to show, or null to show up to [Currency.decimals]
-     * @param groupSeparator character inserted between groups of three integer digits
-     * @param decimalSeparator character inserted between integer and fractional digits
-     * @param showDecimalIfZero when [decimals] is null, controls whether whole values show one
-     * fractional zero (for example, `1 234.0`) or no fractional part (`1 234`)
-     * @param appendSymbol whether to append [Currency.symbol] when present
-     * @return formatted decimal text, optionally suffixed with [Currency.symbol]
-     * @throws IllegalArgumentException when [decimals] is outside `0..currency.decimals`
+     * @param currency Currency of the returned amount.
+     * @param rounding Rounding applied when [currency] has fewer decimals than this currency.
+     * @return This amount rounded to the scale of [currency].
      */
-    fun toFormattedString(
+    public fun withCurrency(
+        currency: Currency,
+        rounding: Rounding = Rounding.HALF_UP,
+    ): Moneta = fromDecimal(value, currency, rounding)
+
+    /**
+     * Returns an amount of this currency with a different value.
+     *
+     * @param value New amount in whole currency units; its sign is discarded.
+     * @param rounding Rounding applied at the currency scale.
+     * @return New amount in this currency.
+     */
+    public fun withValue(
+        value: Decimal,
+        rounding: Rounding = Rounding.HALF_UP,
+    ): Moneta = fromDecimal(value, currency, rounding)
+
+    /**
+     * Returns an amount of this currency parsed from plain decimal text.
+     *
+     * @param value Plain decimal text such as `"2.40"`; a sign is accepted and discarded.
+     * @param rounding Rounding applied at the currency scale.
+     * @return New amount in this currency.
+     * @throws IllegalArgumentException When [value] is not plain decimal text.
+     */
+    public fun withDecimalString(
+        value: String,
+        rounding: Rounding = Rounding.HALF_UP,
+    ): Moneta = fromDecimalString(value, currency, rounding)
+
+    /**
+     * Returns an amount of this currency from a count of its smallest unit.
+     *
+     * @param value Atomic units; its sign is discarded.
+     * @return New amount in this currency.
+     */
+    public fun withAtomicLong(value: Long): Moneta = fromAtomicLong(value, currency)
+
+    /**
+     * Renders the amount as plain decimal text without grouping, code, or symbol.
+     *
+     * @param scale Exact number of fractional digits to render, or `null` to render the shortest
+     * form without trailing zeros.
+     * @param rounding Rounding applied when [scale] is below [Currency.decimals].
+     * @return Plain decimal text such as `"1.5"` or, with `scale = 2`, `"1.50"`.
+     * @throws IllegalArgumentException When [scale] is negative.
+     */
+    public fun toDecimalString(scale: Int? = null, rounding: Rounding = Rounding.HALF_UP): String {
+        if (scale == null) return value.toPlainString()
+
+        require(scale >= 0) { "scale must not be negative, but was $scale." }
+        return value.toFormattedString(scale, scale, rounding, '.', null)
+    }
+
+    /**
+     * Formats the amount for display with digit grouping.
+     *
+     * @param decimals Exact number of fractional digits to show, or `null` to show up to
+     * [Currency.decimals] digits without trailing zeros.
+     * @param groupSeparator Separator inserted between groups of three integer digits.
+     * @param decimalSeparator Separator between integer and fractional digits; must differ from
+     * [groupSeparator].
+     * @param showDecimalIfZero When [decimals] is `null`, whether whole amounts keep one fractional
+     * zero (`1 234.0`) instead of none (`1 234`).
+     * @param appendSymbol Whether to append [Currency.symbol] when it is present.
+     * @param rounding Rounding applied when [decimals] is below [Currency.decimals].
+     * @return Formatted text such as `"1 234.5"`, optionally followed by the currency symbol.
+     * @throws IllegalArgumentException When [decimals] is outside `0..currency.decimals` or both
+     * separators are equal.
+     */
+    public fun toFormattedString(
         decimals: Int? = null,
         groupSeparator: Char = ' ',
         decimalSeparator: Char = '.',
         showDecimalIfZero: Boolean = true,
         appendSymbol: Boolean = false,
+        rounding: Rounding = Rounding.HALF_UP,
     ): String {
-        require(decimals == null || (decimals in 0..(this.currency.decimals))) {
-            "decimals must be null or between 0 and currency.decimals"
+        require(decimals == null || decimals in 0..currency.decimals) {
+            "decimals must be null or in 0..${currency.decimals} for $currency, but was $decimals."
         }
 
-        val maxFractionDigits = decimals ?: this.currency.decimals
+        val maxFractionDigits = decimals ?: currency.decimals
         val minFractionDigits = decimals ?: if (showDecimalIfZero && maxFractionDigits > 0) 1 else 0
-
-        // Decimal owns grouping, rounding, zero trimming, and padding; Moneta supplies money precision.
         val formatted = value.toFormattedString(
             maxFractionDigits,
             minFractionDigits,
-            Rounding.HALF_UP,
+            rounding,
             decimalSeparator,
             groupSeparator,
         )
 
-        return if (appendSymbol && currency.symbol != null) {
-            formatted + currency.symbol
-        } else {
-            formatted
+        val symbol = currency.symbol
+        return if (appendSymbol && symbol != null) formatted + symbol else formatted
+    }
+
+    /**
+     * Returns the amount as integer text counting the currency's smallest unit.
+     *
+     * The conversion is exact because the amount never has more than [Currency.decimals]
+     * fractional digits. Use this to persist or transport amounts that may exceed [Long].
+     *
+     * @return Base-10 integer text, for example `"124"` for `1.24 USD`.
+     */
+    public fun toAtomicString(): String = value.movePointRight(currency.decimals).toIntegerString()
+
+    /**
+     * Returns the amount as a count of the currency's smallest unit.
+     *
+     * @return Atomic units, for example `124` for `1.24 USD`.
+     * @throws ArithmeticException When the count does not fit in [Long].
+     */
+    public fun toAtomicLong(): Long = toAtomicLongOrNull()
+        ?: throw ArithmeticException("Atomic amount of $this does not fit in Long: ${toAtomicString()}.")
+
+    /**
+     * Returns the amount as a count of the currency's smallest unit, or `null` when it is too large.
+     *
+     * @return Atomic units, or `null` when the count does not fit in [Long].
+     */
+    public fun toAtomicLongOrNull(): Long? = toAtomicString().toLongOrNull()
+
+    /**
+     * Compares amounts of the same currency numerically.
+     *
+     * @param other Amount to compare with.
+     * @return A negative number, zero, or a positive number when this amount is less than, equal
+     * to, or greater than [other].
+     * @throws IllegalArgumentException When [other] has a different currency.
+     */
+    override fun compareTo(other: Moneta): Int {
+        requireSameCurrency(other, "compare")
+        return value.compareTo(other.value)
+    }
+
+    /**
+     * Returns whether [other] is an amount with the same numeric value and the same currency.
+     *
+     * @param other Candidate value.
+     * @return `true` for equal amounts in equal currencies.
+     */
+    override fun equals(other: Any?): Boolean =
+        other is Moneta && value == other.value && currency == other.currency
+
+    /**
+     * Returns a hash code consistent with [equals].
+     *
+     * @return Hash of the numeric value and currency.
+     */
+    override fun hashCode(): Int = 31 * value.hashCode() + currency.hashCode()
+
+    /**
+     * Returns a debug representation such as `Moneta(1.50 USD)`.
+     *
+     * The amount is padded to [Currency.decimals]. Use [toDecimalString] or [toFormattedString]
+     * for user-facing text.
+     *
+     * @return Amount and currency code, when present.
+     */
+    override fun toString(): String {
+        val amount = toDecimalString(currency.decimals)
+        return currency.code?.let { "Moneta($amount $it)" } ?: "Moneta($amount)"
+    }
+
+    /**
+     * Requires [other] to have this amount's currency.
+     *
+     * @param other Second operand.
+     * @param operation Verb used in the error message.
+     * @throws IllegalArgumentException When the currencies differ.
+     */
+    private fun requireSameCurrency(other: Moneta, operation: String) {
+        require(currency == other.currency) {
+            "Cannot $operation amounts in different currencies: $currency and ${other.currency}."
         }
     }
-
-    /**
-     * Convert stored monetary value to an **atomic integer string** for persistence or transport.
-     *
-     * This moves the decimal point *right* by `currency.decimals` and rounds to an integer
-     * (using provided `rounding`) so it's safe to store/serialize as the smallest unit.
-     *
-     * Example: for USD (`currency.decimals == 2`)
-     *  - value = 1.235, toAtomicString -> "124" with HALF_UP
-     *
-     * @param rounding rounding mode to use when rounding to atomic integer
-     * @return base-10 integer string of smallest units
-     */
-    fun toAtomicString(rounding: Rounding = Rounding.HALF_UP): String {
-        val shifted = value
-            .setScale(this.currency.decimals, rounding)
-            .movePointRight(this.currency.decimals)
-        return shifted.toIntegerString()
-    }
-
-    /**
-     * Convert this Moneta into atomic smallest-units as a Long (cents, sats, wei, ...).
-     *
-     * - Rounds to `currency.decimals` (HALF_UP by default), then shifts right by that precision
-     * - Returns null if the result doesn't fit in a Long
-     *
-     * @param rounding rounding mode applied before shifting to atomic units
-     * @return atomic smallest-unit amount, or null when it does not fit in [Long]
-     */
-    fun toAtomicLongOrNull(rounding: Rounding = Rounding.HALF_UP): Long? {
-        val atomicStr = this.toAtomicString(rounding)
-        return atomicStr.toLongOrNull()
-    }
-
-    /**
-     * Human-friendly textual representation of the monetary value using the underlying decimal.
-     *
-     * Equivalent to `value.toPlainString()` which avoids scientific notation.
-     * This does not append currency code or symbol.
-     *
-     * @return plain decimal text for [value]
-     */
-    override fun toString(): String = value.toPlainString()
 }

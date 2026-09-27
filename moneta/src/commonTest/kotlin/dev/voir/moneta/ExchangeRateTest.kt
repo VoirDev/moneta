@@ -7,83 +7,108 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ExchangeRateTest {
-    @Test
-    fun `convert USD to MYR by rate`() {
-        val oneUsd = Moneta.fromInt(1, Currency(code = "usd", decimals = 2)) // 1.00 USD
-        val rate = Decimal.of("4.6") // 4.6 MYR per 1 USD
+    private val myr = Currency(decimals = 2, code = "MYR")
 
-        val converted = oneUsd.convertByRate(rate = rate, Currency(code = "myr", decimals = 2))
-        // 1.00 * 4.6 = 4.6 -> rounded to 2 decimals => 4.60
-        assertEquals("4.60", converted.toDecimalString(2))
+    @Test
+    fun `convertByRate multiplies and rounds to target scale`() {
+        val converted = money("1").convertByRate(Decimal.parse("4.6"), myr)
+
+        assertEquals(money("4.60", myr), converted)
     }
 
     @Test
-    fun `convert crypto amount with high precision rate`() {
-        // Convert BTC -> USD using a high-precision rate
-        val satoshiAtomic = Moneta.fromAtomicLong(
-            123456789L, Currency(code = "btc", decimals = 8)
-        ) // 1.23456789 BTC
-        val usdPerBtc = Decimal.of("45000.12345678")              // USD per BTC (high precision)
+    fun `convertByRate rounds a high precision product once`() {
+        val converted = money("1.23456789", BTC).convertByRate(Decimal.parse("45000.12345678"), USD)
 
-        val converted = satoshiAtomic.convertByRate(
-            usdPerBtc, Currency(code = "usd", decimals = 2)
+        // 1.23456789 * 45000.12345678 = 55555.707466...; HALF_UP to cents.
+        assertEquals(money("55555.71"), converted)
+    }
+
+    @Test
+    fun `convertByRate honours explicit rounding`() {
+        val converted = money("1").convertByRate(Decimal.parse("0.125"), EUR, Rounding.HALF_EVEN)
+
+        assertEquals(money("0.12", EUR), converted)
+    }
+
+    @Test
+    fun `convertByRate rejects zero and negative rates`() {
+        assertFailsWith<IllegalArgumentException> { money("1").convertByRate(Decimal.zero(), myr) }
+        val error = assertFailsWith<IllegalArgumentException> {
+            money("1").convertByRate(Decimal.parse("-2"), myr)
+        }
+        assertEquals("Exchange rate must be positive, but was -2.", error.message)
+    }
+
+    @Test
+    fun `calculateExchangeRate divides target by source`() {
+        val rate = calculateExchangeRate(money("2.00"), money("9.20", myr))
+
+        assertEquals(Decimal.parse("4.6"), rate)
+    }
+
+    @Test
+    fun `calculateExchangeRate respects scale and rounding`() {
+        assertEquals(Decimal.parse("0.3333"), calculateExchangeRate(money("3"), money("1", EUR), scale = 4))
+        assertEquals(
+            Decimal.parse("0.6666"),
+            calculateExchangeRate(money("3"), money("2", EUR), scale = 4, rounding = Rounding.DOWN),
         )
-        // Multiply then round to 2 decimals
-        val expectedRaw = Decimal.of("1.23456789").multiply(usdPerBtc)
-        val expectedRounded = expectedRaw.setScale(2, Rounding.HALF_UP)
-        assertEquals(expectedRounded.toPlainString(), converted.toDecimalString(2))
     }
 
     @Test
-    fun `calculate direct and reverse exchange rates`() {
-        val from = Moneta.fromDecimalString("1.00", Currency(code = "usd", decimals = 2))
-        val to = Moneta.fromDecimalString("4.60", Currency(code = "myr", decimals = 2))
-
-        val direct = calculateExchangeRate(from, to, scale = 8)
-        val reverse = calculateReverseExchangeRate(direct, scale = 18)
-
-        // direct should be 4.60 (with requested scale)
-        assertEquals("4.6", direct.setScale(2, Rounding.HALF_UP).toPlainString())
-        // reverse should be approx 0.21739130 (1 / 4.6) when scale=8 => check by multiplying direct*reverse ≈ 1
-        val product = direct.multiply(reverse).setScale(8, Rounding.HALF_UP)
-        assertEquals("1", product.toPlainString())
+    fun `calculateExchangeRate rejects zero amounts`() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            calculateExchangeRate(money("0.00"), money("1", myr))
+        }
+        assertEquals("Cannot calculate an exchange rate: from amount Moneta(0.00 USD) is zero.", error.message)
+        assertFailsWith<IllegalArgumentException> { calculateExchangeRate(money("1"), Moneta.zero(myr)) }
     }
 
     @Test
-    fun `calculate exchange rates pair`() {
-        val from = Moneta.fromDecimalString("2.00", Currency(code = "usd", decimals = 2))
-        val to = Moneta.fromDecimalString(
-            "9.20",
-            Currency(code = "myr", decimals = 2)
-        ) // implies 4.6 MYR per 1 USD
-
-        val (direct, reverse) = calculateExchangeRatesPair(from, to, scale = 18)
-        assertEquals("4.6", direct.setScale(1, Rounding.HALF_UP).toPlainString())
-        // reverse * direct ≈ 1
-        val prod = direct.multiply(reverse).setScale(6, Rounding.HALF_UP)
-        assertEquals("1", prod.toPlainString())
+    fun `calculateReverseExchangeRate inverts the rate`() {
+        assertEquals(Decimal.parse("0.25"), calculateReverseExchangeRate(Decimal.parse("4")))
+        assertEquals(Decimal.parse("0.2174"), calculateReverseExchangeRate(Decimal.parse("4.6"), scale = 4))
     }
 
     @Test
-    fun `throw when rate or source amount is zero`() {
-        val zeroUsd = Moneta.zero()
-        val someMyr = Moneta.fromDecimalString("1.00", Currency(code = "myr", decimals = 2))
-        val zeroRate = Decimal.ofInteger("0")
+    fun `calculateReverseExchangeRate rejects zero and negative rates`() {
+        assertFailsWith<IllegalArgumentException> { calculateReverseExchangeRate(Decimal.zero()) }
+        assertFailsWith<IllegalArgumentException> { calculateReverseExchangeRate(Decimal.parse("-1")) }
+    }
 
-        // calculateExchangeRate should throw when from is zero
-        assertFailsWith<ArithmeticException> {
-            calculateExchangeRate(zeroUsd, someMyr)
-        }
+    @Test
+    fun `calculateExchangeRatesPair returns direct and reverse rates`() {
+        val (direct, reverse) = calculateExchangeRatesPair(money("2.00"), money("9.20", myr), scale = 6)
 
-        // calculateReverseExchangeRate should throw on zero rate
-        assertFailsWith<ArithmeticException> {
-            calculateReverseExchangeRate(zeroRate)
-        }
+        assertEquals(Decimal.parse("4.6"), direct)
+        assertEquals(Decimal.parse("0.217391"), reverse)
+    }
 
-        // convertByRate should throw on zero rate
-        val oneUsd = Moneta.fromInt(1, Currency(code = "usd", decimals = 2))
-        assertFailsWith<ArithmeticException> {
-            oneUsd.convertByRate(zeroRate, Currency(code = "myr", decimals = 2))
-        }
+    @Test
+    fun `calculateExchangeRatesPair rounds reverse rate from amounts`() {
+        // From the rounded direct rate 66.67 the reverse would be 0.01; from the amounts it is 0.015 -> 0.02.
+        val (direct, reverse) = calculateExchangeRatesPair(money("3"), money("200", EUR), scale = 2)
+
+        assertEquals(Decimal.parse("66.67"), direct)
+        assertEquals(Decimal.parse("0.02"), reverse)
+    }
+
+    @Test
+    fun `calculateExchangeRatesPair keeps reverse rate when direct rate rounds to zero`() {
+        val (direct, reverse) = calculateExchangeRatesPair(
+            from = Moneta.fromInt(1_000_000_000, USD),
+            to = Moneta.fromAtomicInt(1, BTC),
+            scale = 12,
+        )
+
+        assertEquals(Decimal.zero(), direct)
+        assertEquals(Decimal.parse("100000000000000000"), reverse)
+    }
+
+    @Test
+    fun `calculateExchangeRatesPair rejects zero amounts`() {
+        assertFailsWith<IllegalArgumentException> { calculateExchangeRatesPair(Moneta.zero(USD), money("1", myr)) }
+        assertFailsWith<IllegalArgumentException> { calculateExchangeRatesPair(money("1"), Moneta.zero(myr)) }
     }
 }
